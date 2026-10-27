@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -27,7 +26,7 @@ class AuthService {
       throw Exception(data['message'] ?? 'Đăng ký thất bại');
     }
 
-    return data;
+    return Map<String, dynamic>.from(data);
   }
 
   // Đăng nhập tài khoản
@@ -50,6 +49,6 @@ class AuthService {
       throw Exception(data['message'] ?? 'Đăng nhập thất bại');
     }
 
-    return data;
+    return Map<String, dynamic>.from(data);
   }
 }
