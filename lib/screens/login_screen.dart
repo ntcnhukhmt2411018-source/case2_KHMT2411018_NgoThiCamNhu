@@ -1,6 +1,8 @@
+
 import 'package:flutter/material.dart';
 import '../services/auth_services.dart';
 import 'register_screen.dart';
+import '../profile/profile_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,14 +35,25 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => loading = true);
 
     try {
-      await AuthService.login(email, password);
+      final data = await AuthService.login(email, password);
 
       if (!mounted) return;
 
-      thongBao('Đăng nhập thành công');
+      final token = data['token'];
 
-      // Sau này chuyển đến home_screen.dart tại đây.
+      if (token == null || token.toString().isEmpty) {
+        thongBao('Đăng nhập thành công nhưng chưa nhận được token');
+        return;
+      }
 
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ProfileScreen(
+            token: token.toString(),
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
 
@@ -67,10 +80,8 @@ class _LoginScreenState extends State<LoginScreen> {
       appBar: AppBar(
         title: const Text('Task Manager'),
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-
         child: Column(
           children: [
             const SizedBox(height: 40),

@@ -1,10 +1,17 @@
+
 require('dotenv').config();
 
 const express = require('express');
 const mongoose = require('mongoose');
 
+// Thêm kết nối đến authRoutes.js
+const authRoutes = require('./routes/authRoutes');
+
 const app = express();
 app.use(express.json());
+
+// Thêm đường dẫn API xác thực
+app.use('/api/auth', authRoutes);
 
 const PORT = process.env.PORT || 3000;
 
