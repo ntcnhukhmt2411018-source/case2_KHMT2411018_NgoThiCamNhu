@@ -1,8 +1,9 @@
 
 import 'package:flutter/material.dart';
 
-// Màn hình tạo công việc
+// Các màn hình
 import 'task_create_screen.dart';
+import 'task_detail_screen.dart';
 
 // Service kết nối MongoDB
 import '../services/task_service.dart';
@@ -30,7 +31,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
   // 3. CONTROLLER TÌM KIẾM
   final timKiemController = TextEditingController();
 
-  // 4. DANH SÁCH CÁC TAB
+  // 4. CÁC TAB
   final List<String> danhSachTab = [
     'Tất cả',
     'Của tôi',
@@ -38,18 +39,16 @@ class _TaskListScreenState extends State<TaskListScreen> {
     'Được chia sẻ',
   ];
 
-  // 5. DANH SÁCH CÔNG VIỆC TỪ MONGODB
+  // 5. DANH SÁCH TỪ MONGODB
   List<dynamic> danhSachCongViec = [];
 
-  // 6. TRẠNG THÁI TẢI DỮ LIỆU
+  // 6. TRẠNG THÁI TẢI
   bool dangTai = false;
   String? loiTaiDuLieu;
 
   @override
   void initState() {
     super.initState();
-
-    // Tự động tải công việc khi mở màn hình
     taiDanhSachCongViec();
   }
 
@@ -59,7 +58,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     super.dispose();
   }
 
-  // 7. LẤY CÔNG VIỆC TỪ MONGODB
+  // 7. LẤY DANH SÁCH TỪ MONGODB
   Future<void> taiDanhSachCongViec() async {
     if (!mounted) return;
 
@@ -69,7 +68,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
     });
 
     try {
-      // Gọi API GET /api/tasks
       final ketQua = await TaskService.getTasks(
         widget.token,
       );
@@ -108,7 +106,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
     if (!mounted) return;
 
-    // Nếu tạo thành công thì tải lại danh sách
     if (ketQua == true) {
       await taiDanhSachCongViec();
 
@@ -120,7 +117,28 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
-  // 9. HIỂN THỊ THÔNG BÁO
+  // 9. MỞ MÀN HÌNH CHI TIẾT CÔNG VIỆC
+  Future<void> moChiTietCongViec(dynamic congViec) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TaskDetailScreen(
+          // Truyền token để chỉnh sửa công việc
+          token: widget.token,
+
+          // Truyền dữ liệu công việc
+          task: Map<String, dynamic>.from(congViec),
+        ),
+      ),
+    );
+
+    // Tải lại danh sách sau khi quay về
+    if (!mounted) return;
+
+    await taiDanhSachCongViec();
+  }
+
+  // 10. HIỂN THỊ THÔNG BÁO
   void thongBao(String noiDung) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -130,11 +148,10 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
-  // 10. LỌC DANH SÁCH THEO TÊN CÔNG VIỆC
+  // 11. TÌM KIẾM THEO TÊN CÔNG VIỆC
   List<dynamic> locCongViec() {
-    final tuKhoa = timKiemController.text
-        .trim()
-        .toLowerCase();
+    final tuKhoa =
+    timKiemController.text.trim().toLowerCase();
 
     return danhSachCongViec.where((congViec) {
       final ten = (congViec['title'] ?? '')
@@ -145,7 +162,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }).toList();
   }
 
-  // 11. ĐỊNH DẠNG NGÀY
+  // 12. ĐỊNH DẠNG NGÀY
   String hienThiNgay(dynamic ngay) {
     if (ngay == null) return 'Chưa có hạn';
 
@@ -160,7 +177,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
         '${localDate.year}';
   }
 
-  // 12. MÀU CỦA MỨC ĐỘ ƯU TIÊN
+  // 13. MÀU CỦA MỨC ĐỘ ƯU TIÊN
   Color mauUuTien(String mucUuTien) {
     switch (mucUuTien) {
       case 'Cao':
@@ -174,10 +191,13 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
-  // 13. HIỂN THỊ MỘT CÔNG VIỆC
+  // 14. HIỂN THỊ MỘT CÔNG VIỆC
   Widget hienThiCongViec(dynamic congViec) {
-    final ten = congViec['title']?.toString() ?? '';
-    final moTa = congViec['description']?.toString() ?? '';
+    final ten =
+        congViec['title']?.toString() ?? '';
+
+    final moTa =
+        congViec['description']?.toString() ?? '';
 
     final uuTien =
         congViec['priority']?.toString() ?? 'Trung bình';
@@ -196,89 +216,117 @@ class _TaskListScreenState extends State<TaskListScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Tên công việc
-            Text(
-              ten,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
+
+      // Nhấn để xem chi tiết
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          moChiTietCongViec(congViec);
+        },
+
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // TÊN CÔNG VIỆC
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      ten,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: Colors.grey,
+                  ),
+                ],
               ),
-            ),
 
-            if (moTa.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                moTa,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.grey.shade700,
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 12),
-
-            // Mức ưu tiên
-            Row(
-              children: [
-                Icon(
-                  Icons.flag,
-                  color: mauUuTien(uuTien),
-                  size: 18,
-                ),
-                const SizedBox(width: 6),
+              // MÔ TẢ
+              if (moTa.isNotEmpty) ...[
+                const SizedBox(height: 6),
                 Text(
-                  'Ưu tiên: $uuTien',
+                  moTa,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: mauUuTien(uuTien),
-                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade700,
                   ),
                 ),
               ],
-            ),
 
-            const SizedBox(height: 8),
+              const SizedBox(height: 12),
 
-            // Trạng thái
-            Row(
-              children: [
-                const Icon(
-                  Icons.pending_actions,
-                  size: 18,
-                  color: mauTim,
-                ),
-                const SizedBox(width: 6),
-                Text('Trạng thái: $trangThai'),
-              ],
-            ),
+              // MỨC ƯU TIÊN
+              Row(
+                children: [
+                  Icon(
+                    Icons.flag,
+                    color: mauUuTien(uuTien),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Ưu tiên: $uuTien',
+                    style: TextStyle(
+                      color: mauUuTien(uuTien),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
 
-            const SizedBox(height: 8),
+              const SizedBox(height: 8),
 
-            // Hạn hoàn thành
-            Row(
-              children: [
-                const Icon(
-                  Icons.calendar_today,
-                  size: 18,
-                  color: Colors.grey,
-                ),
-                const SizedBox(width: 6),
-                Text('Hạn hoàn thành: $hanHoanThanh'),
-              ],
-            ),
-          ],
+              // TRẠNG THÁI
+              Row(
+                children: [
+                  const Icon(
+                    Icons.pending_actions,
+                    size: 18,
+                    color: mauTim,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Trạng thái: $trangThai',
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              // HẠN HOÀN THÀNH
+              Row(
+                children: [
+                  const Icon(
+                    Icons.calendar_today,
+                    size: 18,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Hạn hoàn thành: $hanHoanThanh',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // 14. GIAO DIỆN DANH SÁCH CÔNG VIỆC
+  // 15. GIAO DIỆN DANH SÁCH
   @override
   Widget build(BuildContext context) {
     final danhSachHienThi = locCongViec();
@@ -286,7 +334,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFFAF8FF),
 
-      // THANH TIÊU ĐỀ
       appBar: AppBar(
         title: const Text('Danh sách công việc'),
         centerTitle: true,
@@ -302,7 +349,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
       body: Column(
         children: [
-          // 15. CÁC TAB DANH SÁCH
+          // 16. CÁC TAB
           SizedBox(
             height: 55,
             child: ListView.builder(
@@ -333,7 +380,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
             ),
           ),
 
-          // 16. Ô TÌM KIẾM
+          // 17. Ô TÌM KIẾM
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
@@ -344,8 +391,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
               decoration: InputDecoration(
                 hintText: 'Tìm kiếm công việc...',
                 prefixIcon: const Icon(Icons.search),
-
-                // NÚT BỘ LỌC
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.filter_list),
                   onPressed: () {
@@ -354,7 +399,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
                     );
                   },
                 ),
-
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -362,17 +406,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
             ),
           ),
 
-          // 17. KHU VỰC DANH SÁCH
+          // 18. KHU VỰC HIỂN THỊ DANH SÁCH
           Expanded(
             child: dangTai
-            // Đang tải dữ liệu
                 ? const Center(
               child: CircularProgressIndicator(
                 color: mauTim,
               ),
             )
-
-            // Có lỗi API
                 : loiTaiDuLieu != null
                 ? Center(
               child: Padding(
@@ -399,8 +440,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 ),
               ),
             )
-
-            // Danh sách trống
                 : danhSachHienThi.isEmpty
                 ? const Center(
               child: Text(
@@ -413,8 +452,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 ),
               ),
             )
-
-            // Hiển thị công việc từ MongoDB
                 : RefreshIndicator(
               onRefresh: taiDanhSachCongViec,
               child: ListView.builder(
@@ -431,7 +468,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
         ],
       ),
 
-      // 18. NÚT + TẠO CÔNG VIỆC
+      // 19. NÚT TẠO CÔNG VIỆC
       floatingActionButton: FloatingActionButton(
         backgroundColor: mauTim,
         foregroundColor: Colors.white,

@@ -2,7 +2,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-// Service kết nối Flutter với API công việc
+// Service kết nối Flutter với API quản lý công việc
 class TaskService {
   // Địa chỉ backend Node.js trên Android Emulator
   static const String baseUrl =
@@ -62,6 +62,48 @@ class TaskService {
 
     throw Exception(
       data['message'] ?? 'Không thể lấy danh sách công việc',
+    );
+  }
+
+  // 3. CHỈNH SỬA CÔNG VIỆC
+  static Future<Map<String, dynamic>> updateTask({
+    required String token,
+    required String taskId,
+    required String title,
+    required String description,
+    required String priority,
+    required String status,
+    required DateTime startDate,
+    required DateTime dueDate,
+  }) async {
+    // Gửi yêu cầu PUT đến Node.js
+    final response = await http.put(
+      Uri.parse('$baseUrl/$taskId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'title': title,
+        'description': description,
+        'priority': priority,
+        'status': status,
+        'startDate': startDate.toIso8601String(),
+        'dueDate': dueDate.toIso8601String(),
+      }),
+    );
+
+    // Chuyển kết quả JSON thành dữ liệu Dart
+    final data = jsonDecode(response.body);
+
+    // Cập nhật thành công
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    // Thông báo lỗi nếu cập nhật thất bại
+    throw Exception(
+      data['message'] ?? 'Không thể cập nhật công việc',
     );
   }
 }
