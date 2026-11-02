@@ -146,7 +146,7 @@ router.put('/:id', xacThuc, async (req, res) => {
       });
     }
 
-    // Tìm công việc thuộc người tạo
+    // Chỉ người tạo được chỉnh sửa
     const task = await Task.findOne({
       _id: req.params.id,
       createdBy: req.userId,
@@ -219,7 +219,7 @@ router.put('/:id', xacThuc, async (req, res) => {
       });
     }
 
-    // Cập nhật thông tin công việc
+    // Cập nhật công việc
     task.title = title.trim();
     task.description = description || '';
     task.priority = priority;
@@ -239,6 +239,40 @@ router.put('/:id', xacThuc, async (req, res) => {
 
     return res.status(500).json({
       message: 'Không thể cập nhật công việc',
+    });
+  }
+});
+
+// 5. API XÓA CÔNG VIỆC
+router.delete('/:id', xacThuc, async (req, res) => {
+  try {
+    // Kiểm tra ID công việc
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({
+        message: 'ID công việc không hợp lệ',
+      });
+    }
+
+    // Chỉ người tạo công việc mới được xóa
+    const task = await Task.findOneAndDelete({
+      _id: req.params.id,
+      createdBy: req.userId,
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Không tìm thấy công việc hoặc không có quyền xóa',
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Xóa công việc thành công',
+    });
+  } catch (error) {
+    console.error('Lỗi xóa công việc:', error.message);
+
+    return res.status(500).json({
+      message: 'Không thể xóa công việc',
     });
   }
 });

@@ -101,9 +101,39 @@ class TaskService {
       return Map<String, dynamic>.from(data);
     }
 
-    // Thông báo lỗi nếu cập nhật thất bại
     throw Exception(
       data['message'] ?? 'Không thể cập nhật công việc',
     );
+  }
+
+  // 4. XÓA CÔNG VIỆC
+  static Future<void> deleteTask({
+    required String token,
+    required String taskId,
+  }) async {
+    // Gửi yêu cầu DELETE đến Node.js
+    final response = await http.delete(
+      Uri.parse('$baseUrl/$taskId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    // Xóa thành công
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    // Đọc thông báo lỗi từ backend
+    String thongBao = 'Không thể xóa công việc';
+
+    try {
+      final data = jsonDecode(response.body);
+      thongBao = data['message'] ?? thongBao;
+    } catch (_) {
+      // Giữ thông báo mặc định nếu server không trả JSON
+    }
+
+    throw Exception(thongBao);
   }
 }

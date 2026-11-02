@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 // Import màn hình chỉnh sửa công việc
 import 'task_edit_screen.dart';
 
+// Import service để gọi API xóa công việc
+import '../services/task_service.dart';
+
 class TaskDetailScreen extends StatefulWidget {
   // Thông tin công việc từ danh sách
   final Map<String, dynamic> task;
@@ -27,6 +30,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   // Dữ liệu công việc hiện tại
   late Map<String, dynamic> congViec;
+
+  // Kiểm tra có đang xóa công việc hay không
+  bool dangXoa = false;
 
   @override
   void initState() {
@@ -120,7 +126,92 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
-  // 4. GIAO DIỆN CHI TIẾT CÔNG VIỆC
+  // 4. XÓA CÔNG VIỆC
+  Future<void> xoaCongViec() async {
+    if (dangXoa) return;
+
+    // Hiển thị hộp thoại xác nhận trước khi xóa
+    final xacNhan = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Xác nhận xóa'),
+          content: Text(
+            'Bạn có chắc chắn muốn xóa công việc '
+                '"${congViec['title']}" không?\n\n'
+                'Công việc đã xóa sẽ không thể khôi phục.',
+          ),
+          actions: [
+            // Nút Hủy
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Hủy'),
+            ),
+
+            // Nút xác nhận Xóa
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text(
+                'Xóa',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    // Không xóa nếu nhấn Hủy
+    if (xacNhan != true || !mounted) return;
+
+    setState(() {
+      dangXoa = true;
+    });
+
+    try {
+      // Lấy ID công việc trong MongoDB
+      final taskId = congViec['_id']?.toString();
+
+      if (taskId == null || taskId.isEmpty) {
+        throw Exception('Không tìm thấy ID công việc');
+      }
+
+      // Gọi API DELETE để xóa công việc
+      await TaskService.deleteTask(
+        token: widget.token,
+        taskId: taskId,
+      );
+
+      if (!mounted) return;
+
+      // Quay lại danh sách sau khi xóa thành công
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+
+      // Hiển thị thông báo nếu xóa thất bại
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst('Exception: ', ''),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          dangXoa = false;
+        });
+      }
+    }
+  }
+
+  // 5. GIAO DIỆN CHI TIẾT CÔNG VIỆC
   @override
   Widget build(BuildContext context) {
     final ten = congViec['title']?.toString() ?? '';
@@ -231,10 +322,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             // NÚT CHỈNH SỬA VÀ XÓA
             Row(
               children: [
+                // Nút Chỉnh sửa
                 Expanded(
                   child: ElevatedButton.icon(
-                    // Mở màn hình chỉnh sửa
-                    onPressed: moChinhSuaCongViec,
+                    onPressed: dangXoa
+                        ? null
+                        : moChinhSuaCongViec,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: mauTim,
                       foregroundColor: Colors.white,
@@ -246,12 +339,30 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
                 const SizedBox(width: 12),
 
+                // Nút Xóa
                 Expanded(
                   child: OutlinedButton.icon(
-                    // Chức năng xóa làm ở bước sau
-                    onPressed: null,
-                    icon: const Icon(Icons.delete),
-                    label: const Text('Xóa'),
+                    onPressed: dangXoa
+                        ? null
+                        : xoaCongViec,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(
+                        color: Colors.red,
+                      ),
+                    ),
+                    icon: dangXoa
+                        ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                        : const Icon(Icons.delete),
+                    label: Text(
+                      dangXoa ? 'Đang xóa...' : 'Xóa',
+                    ),
                   ),
                 ),
               ],
