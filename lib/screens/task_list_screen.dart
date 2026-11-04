@@ -22,16 +22,19 @@ class TaskListScreen extends StatefulWidget {
 }
 
 class _TaskListScreenState extends State<TaskListScreen> {
-  // 1. MÀU CHỦ ĐẠO
   static const Color mauTim = Color(0xFF6554C0);
 
-  // 2. TAB ĐANG CHỌN
-  int tabDangChon = 0;
+  // 1. DANH SÁCH CÔNG VIỆC
+  List<dynamic> danhSachCongViec = [];
+  bool dangTai = false;
+  String? loiTaiDuLieu;
 
-  // 3. CONTROLLER TÌM KIẾM
+  // 2. TÌM KIẾM
   final timKiemController = TextEditingController();
 
-  // 4. CÁC TAB
+  // 3. CÁC TAB (SẼ HOÀN THIỆN KHI LÀM GIAO VIỆC)
+  int tabDangChon = 0;
+
   final List<String> danhSachTab = [
     'Tất cả',
     'Của tôi',
@@ -39,12 +42,31 @@ class _TaskListScreenState extends State<TaskListScreen> {
     'Được chia sẻ',
   ];
 
-  // 5. DANH SÁCH TỪ MONGODB
-  List<dynamic> danhSachCongViec = [];
+  // 4. GIÁ TRỊ BỘ LỌC
+  String locTrangThai = 'Tất cả';
+  String locUuTien = 'Tất cả';
+  String sapXep = 'Mới tạo nhất';
 
-  // 6. TRẠNG THÁI TẢI
-  bool dangTai = false;
-  String? loiTaiDuLieu;
+  final List<String> danhSachTrangThai = [
+    'Tất cả',
+    'Chưa thực hiện',
+    'Đang thực hiện',
+    'Đã hoàn thành',
+  ];
+
+  final List<String> danhSachUuTien = [
+    'Tất cả',
+    'Thấp',
+    'Trung bình',
+    'Cao',
+  ];
+
+  final List<String> danhSachSapXep = [
+    'Mới tạo nhất',
+    'Cũ nhất',
+    'Hạn hoàn thành gần nhất',
+    'Ưu tiên cao nhất',
+  ];
 
   @override
   void initState() {
@@ -58,7 +80,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     super.dispose();
   }
 
-  // 7. LẤY DANH SÁCH TỪ MONGODB
+  // 5. TẢI DANH SÁCH TỪ MONGODB
   Future<void> taiDanhSachCongViec() async {
     if (!mounted) return;
 
@@ -68,9 +90,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     });
 
     try {
-      final ketQua = await TaskService.getTasks(
-        widget.token,
-      );
+      final ketQua = await TaskService.getTasks(widget.token);
 
       if (!mounted) return;
 
@@ -93,7 +113,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
-  // 8. MỞ MÀN HÌNH TẠO CÔNG VIỆC
+  // 6. MỞ MÀN HÌNH TẠO CÔNG VIỆC
   Future<void> moTaoCongViec() async {
     final ketQua = await Navigator.push<bool>(
       context,
@@ -117,28 +137,31 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
-  // 9. MỞ MÀN HÌNH CHI TIẾT CÔNG VIỆC
+  // 7. MỞ MÀN HÌNH CHI TIẾT
   Future<void> moChiTietCongViec(dynamic congViec) async {
-    await Navigator.push(
+    final ketQua = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => TaskDetailScreen(
-          // Truyền token để chỉnh sửa công việc
           token: widget.token,
-
-          // Truyền dữ liệu công việc
           task: Map<String, dynamic>.from(congViec),
         ),
       ),
     );
 
-    // Tải lại danh sách sau khi quay về
     if (!mounted) return;
 
+    // Tải lại danh sách sau khi sửa hoặc xóa
     await taiDanhSachCongViec();
+
+    if (!mounted) return;
+
+    if (ketQua == true && loiTaiDuLieu == null) {
+      thongBao('Xóa công việc thành công!');
+    }
   }
 
-  // 10. HIỂN THỊ THÔNG BÁO
+  // 8. HIỂN THỊ THÔNG BÁO
   void thongBao(String noiDung) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -148,27 +171,17 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
-  // 11. TÌM KIẾM THEO TÊN CÔNG VIỆC
-  List<dynamic> locCongViec() {
-    final tuKhoa =
-    timKiemController.text.trim().toLowerCase();
+  // 9. CHUYỂN NGÀY THÁNG
+  DateTime? chuyenNgay(dynamic ngay) {
+    if (ngay == null) return null;
 
-    return danhSachCongViec.where((congViec) {
-      final ten = (congViec['title'] ?? '')
-          .toString()
-          .toLowerCase();
-
-      return ten.contains(tuKhoa);
-    }).toList();
+    return DateTime.tryParse(ngay.toString());
   }
 
-  // 12. ĐỊNH DẠNG NGÀY
   String hienThiNgay(dynamic ngay) {
-    if (ngay == null) return 'Chưa có hạn';
+    final date = chuyenNgay(ngay);
 
-    final date = DateTime.tryParse(ngay.toString());
-
-    if (date == null) return 'Không hợp lệ';
+    if (date == null) return 'Chưa có hạn';
 
     final localDate = date.toLocal();
 
@@ -177,7 +190,273 @@ class _TaskListScreenState extends State<TaskListScreen> {
         '${localDate.year}';
   }
 
-  // 13. MÀU CỦA MỨC ĐỘ ƯU TIÊN
+  // 10. CHUYỂN MỨC ƯU TIÊN THÀNH SỐ
+  int giaTriUuTien(String uuTien) {
+    switch (uuTien) {
+      case 'Cao':
+        return 3;
+      case 'Trung bình':
+        return 2;
+      case 'Thấp':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  // 11. TÌM KIẾM, LỌC VÀ SẮP XẾP CÔNG VIỆC
+  List<dynamic> locCongViec() {
+    final tuKhoa =
+    timKiemController.text.trim().toLowerCase();
+
+    // Tạo danh sách mới để không thay đổi dữ liệu gốc
+    final ketQua = danhSachCongViec.where((congViec) {
+      final ten =
+      (congViec['title'] ?? '').toString().toLowerCase();
+
+      final trangThai =
+      (congViec['status'] ?? 'Chưa thực hiện').toString();
+
+      final uuTien =
+      (congViec['priority'] ?? 'Trung bình').toString();
+
+      // Lọc theo tên
+      final dungTen = ten.contains(tuKhoa);
+
+      // Lọc theo trạng thái
+      final dungTrangThai =
+          locTrangThai == 'Tất cả' ||
+              trangThai == locTrangThai;
+
+      // Lọc theo mức độ ưu tiên
+      final dungUuTien =
+          locUuTien == 'Tất cả' ||
+              uuTien == locUuTien;
+
+      return dungTen && dungTrangThai && dungUuTien;
+    }).toList();
+
+    // Sắp xếp danh sách
+    ketQua.sort((a, b) {
+      if (sapXep == 'Ưu tiên cao nhất') {
+        final uuTienA =
+        giaTriUuTien((a['priority'] ?? '').toString());
+
+        final uuTienB =
+        giaTriUuTien((b['priority'] ?? '').toString());
+
+        return uuTienB.compareTo(uuTienA);
+      }
+
+      if (sapXep == 'Hạn hoàn thành gần nhất') {
+        final ngayA = chuyenNgay(a['dueDate']);
+        final ngayB = chuyenNgay(b['dueDate']);
+
+        if (ngayA == null && ngayB == null) return 0;
+        if (ngayA == null) return 1;
+        if (ngayB == null) return -1;
+
+        return ngayA.compareTo(ngayB);
+      }
+
+      final ngayA = chuyenNgay(a['createdAt']);
+      final ngayB = chuyenNgay(b['createdAt']);
+
+      if (ngayA == null && ngayB == null) return 0;
+      if (ngayA == null) return 1;
+      if (ngayB == null) return -1;
+
+      if (sapXep == 'Cũ nhất') {
+        return ngayA.compareTo(ngayB);
+      }
+
+      // Mặc định: mới tạo nhất
+      return ngayB.compareTo(ngayA);
+    });
+
+    return ketQua;
+  }
+
+  // 12. XÓA BỘ LỌC
+  void xoaBoLoc() {
+    setState(() {
+      locTrangThai = 'Tất cả';
+      locUuTien = 'Tất cả';
+      sapXep = 'Mới tạo nhất';
+    });
+  }
+
+  // 13. HIỂN THỊ HỘP THOẠI LỌC VÀ SẮP XẾP
+  Future<void> moBoLoc() async {
+    // Giá trị tạm, chỉ áp dụng khi nhấn nút Áp dụng
+    String trangThaiTam = locTrangThai;
+    String uuTienTam = locUuTien;
+    String sapXepTam = sapXep;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.filter_list, color: mauTim),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Lọc và sắp xếp',
+                      style: TextStyle(fontSize: 20),
+                    ),
+                  ),
+                ],
+              ),
+
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Lọc trạng thái
+                    const Text(
+                      'Trạng thái',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    DropdownButtonFormField<String>(
+                      key: ValueKey('status-$trangThaiTam'),
+                      initialValue: trangThaiTam,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                      ),
+                      items: danhSachTrangThai.map((item) {
+                        return DropdownMenuItem(
+                          value: item,
+                          child: Text(item),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() {
+                            trangThaiTam = value;
+                          });
+                        }
+                      },
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Lọc mức độ ưu tiên
+                    const Text(
+                      'Mức độ ưu tiên',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    DropdownButtonFormField<String>(
+                      key: ValueKey('priority-$uuTienTam'),
+                      initialValue: uuTienTam,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                      ),
+                      items: danhSachUuTien.map((item) {
+                        return DropdownMenuItem(
+                          value: item,
+                          child: Text(item),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() {
+                            uuTienTam = value;
+                          });
+                        }
+                      },
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Sắp xếp
+                    const Text(
+                      'Sắp xếp theo',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    DropdownButtonFormField<String>(
+                      key: ValueKey('sort-$sapXepTam'),
+                      initialValue: sapXepTam,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                      ),
+                      items: danhSachSapXep.map((item) {
+                        return DropdownMenuItem(
+                          value: item,
+                          child: Text(
+                            item,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() {
+                            sapXepTam = value;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    xoaBoLoc();
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Xóa lọc'),
+                ),
+
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: mauTim,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      locTrangThai = trangThaiTam;
+                      locUuTien = uuTienTam;
+                      sapXep = sapXepTam;
+                    });
+
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Áp dụng'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 14. MÀU CỦA MỨC ĐỘ ƯU TIÊN
   Color mauUuTien(String mucUuTien) {
     switch (mucUuTien) {
       case 'Cao':
@@ -191,10 +470,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
-  // 14. HIỂN THỊ MỘT CÔNG VIỆC
+  // 15. HIỂN THỊ MỘT CÔNG VIỆC
   Widget hienThiCongViec(dynamic congViec) {
-    final ten =
-        congViec['title']?.toString() ?? '';
+    final ten = congViec['title']?.toString() ?? '';
 
     final moTa =
         congViec['description']?.toString() ?? '';
@@ -205,9 +483,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
     final trangThai =
         congViec['status']?.toString() ?? 'Chưa thực hiện';
 
-    final hanHoanThanh = hienThiNgay(
-      congViec['dueDate'],
-    );
+    final hanHoanThanh =
+    hienThiNgay(congViec['dueDate']);
 
     return Card(
       color: Colors.white,
@@ -217,7 +494,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
 
-      // Nhấn để xem chi tiết
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
@@ -229,7 +505,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // TÊN CÔNG VIỆC
+              // Tên công việc
               Row(
                 children: [
                   Expanded(
@@ -248,7 +524,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 ],
               ),
 
-              // MÔ TẢ
+              // Mô tả
               if (moTa.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
@@ -263,7 +539,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
               const SizedBox(height: 12),
 
-              // MỨC ƯU TIÊN
+              // Mức ưu tiên
               Row(
                 children: [
                   Icon(
@@ -284,7 +560,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
               const SizedBox(height: 8),
 
-              // TRẠNG THÁI
+              // Trạng thái
               Row(
                 children: [
                   const Icon(
@@ -303,7 +579,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
               const SizedBox(height: 8),
 
-              // HẠN HOÀN THÀNH
+              // Hạn hoàn thành
               Row(
                 children: [
                   const Icon(
@@ -326,10 +602,15 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
-  // 15. GIAO DIỆN DANH SÁCH
+  // 16. GIAO DIỆN DANH SÁCH
   @override
   Widget build(BuildContext context) {
     final danhSachHienThi = locCongViec();
+
+    final dangLoc =
+        locTrangThai != 'Tất cả' ||
+            locUuTien != 'Tất cả' ||
+            sapXep != 'Mới tạo nhất';
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAF8FF),
@@ -349,7 +630,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
       body: Column(
         children: [
-          // 16. CÁC TAB
+          // Các tab hiện tại
           SizedBox(
             height: 55,
             child: ListView.builder(
@@ -380,7 +661,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
             ),
           ),
 
-          // 17. Ô TÌM KIẾM
+          // Ô tìm kiếm và nút bộ lọc
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
@@ -391,14 +672,17 @@ class _TaskListScreenState extends State<TaskListScreen> {
               decoration: InputDecoration(
                 hintText: 'Tìm kiếm công việc...',
                 prefixIcon: const Icon(Icons.search),
+
+                // Nhấn để mở bộ lọc
                 suffixIcon: IconButton(
-                  icon: const Icon(Icons.filter_list),
-                  onPressed: () {
-                    thongBao(
-                      'Bộ lọc sẽ được bổ sung ở bước tiếp theo',
-                    );
-                  },
+                  tooltip: 'Lọc và sắp xếp',
+                  icon: Icon(
+                    Icons.filter_list,
+                    color: dangLoc ? mauTim : Colors.grey,
+                  ),
+                  onPressed: moBoLoc,
                 ),
+
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -406,7 +690,57 @@ class _TaskListScreenState extends State<TaskListScreen> {
             ),
           ),
 
-          // 18. KHU VỰC HIỂN THỊ DANH SÁCH
+          // Thông tin bộ lọc đang áp dụng
+          if (dangLoc)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.tune,
+                    size: 18,
+                    color: mauTim,
+                  ),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text(
+                      'Đang áp dụng bộ lọc / sắp xếp',
+                      style: TextStyle(
+                        color: mauTim,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: xoaBoLoc,
+                    child: const Text('Xóa lọc'),
+                  ),
+                ],
+              ),
+            ),
+
+          // Số lượng kết quả
+          if (!dangTai && loiTaiDuLieu == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 4,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Tìm thấy ${danhSachHienThi.length} công việc',
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+
+          // Danh sách công việc
           Expanded(
             child: dangTai
                 ? const Center(
@@ -441,12 +775,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
               ),
             )
                 : danhSachHienThi.isEmpty
-                ? const Center(
+                ? Center(
               child: Text(
-                'Chưa có công việc nào.\n'
-                    'Nhấn + để tạo công việc mới.',
+                danhSachCongViec.isEmpty
+                    ? 'Chưa có công việc nào.\n'
+                    'Nhấn + để tạo công việc mới.'
+                    : 'Không tìm thấy công việc phù hợp.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
                   color: Colors.grey,
                 ),
@@ -468,7 +804,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
         ],
       ),
 
-      // 19. NÚT TẠO CÔNG VIỆC
+      // Nút tạo công việc
       floatingActionButton: FloatingActionButton(
         backgroundColor: mauTim,
         foregroundColor: Colors.white,
