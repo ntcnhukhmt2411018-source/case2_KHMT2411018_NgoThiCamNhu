@@ -56,7 +56,6 @@ router.get('/users', xacThuc, async (req, res) => {
       });
     }
 
-    // Chỉ tìm tài khoản có email chính xác
     const user = await User.findOne({
       email: email,
     }).select('_id fullName name email');
@@ -67,15 +66,11 @@ router.get('/users', xacThuc, async (req, res) => {
       });
     }
 
-    // Không trả về mật khẩu
     return res.status(200).json({
       user: user,
     });
   } catch (error) {
-    console.error(
-      'Lỗi tìm người dùng:',
-      error.message
-    );
+    console.error('Lỗi tìm người dùng:', error.message);
 
     return res.status(500).json({
       message: 'Không thể tìm người dùng',
@@ -94,14 +89,12 @@ router.post('/', xacThuc, async (req, res) => {
       dueDate,
     } = req.body;
 
-    // Kiểm tra tên công việc
     if (typeof title !== 'string' || !title.trim()) {
       return res.status(400).json({
         message: 'Vui lòng nhập tên công việc',
       });
     }
 
-    // Kiểm tra ngày
     if (!startDate || !dueDate) {
       return res.status(400).json({
         message: 'Vui lòng chọn đầy đủ ngày',
@@ -126,15 +119,12 @@ router.post('/', xacThuc, async (req, res) => {
       });
     }
 
-    // Lưu công việc vào MongoDB
     const task = await Task.create({
       title: title.trim(),
       description: description || '',
       priority: priority || 'Trung bình',
       startDate: start,
       dueDate: due,
-
-      // Ban đầu người tạo tự phụ trách
       createdBy: req.userId,
       assignedTo: req.userId,
     });
@@ -144,10 +134,7 @@ router.post('/', xacThuc, async (req, res) => {
       task: task,
     });
   } catch (error) {
-    console.error(
-      'Lỗi tạo công việc:',
-      error.message
-    );
+    console.error('Lỗi tạo công việc:', error.message);
 
     return res.status(500).json({
       message: 'Không thể tạo công việc',
@@ -158,7 +145,6 @@ router.post('/', xacThuc, async (req, res) => {
 // 4. API LẤY DANH SÁCH CÔNG VIỆC
 router.get('/', xacThuc, async (req, res) => {
   try {
-    // Lấy các công việc người dùng được phép xem
     const tasks = await Task.find({
       $or: [
         { createdBy: req.userId },
@@ -171,10 +157,7 @@ router.get('/', xacThuc, async (req, res) => {
       tasks: tasks,
     });
   } catch (error) {
-    console.error(
-      'Lỗi lấy công việc:',
-      error.message
-    );
+    console.error('Lỗi lấy công việc:', error.message);
 
     return res.status(500).json({
       message: 'Không thể lấy danh sách công việc',
@@ -188,21 +171,18 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
     const taskId = req.params.id;
     const { assignedTo } = req.body;
 
-    // Kiểm tra ID công việc
     if (!mongoose.isValidObjectId(taskId)) {
       return res.status(400).json({
         message: 'ID công việc không hợp lệ',
       });
     }
 
-    // Kiểm tra ID người nhận
     if (!mongoose.isValidObjectId(assignedTo)) {
       return res.status(400).json({
         message: 'ID người nhận không hợp lệ',
       });
     }
 
-    // Chỉ người tạo được giao công việc
     const task = await Task.findOne({
       _id: taskId,
       createdBy: req.userId,
@@ -215,7 +195,6 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
       });
     }
 
-    // Kiểm tra người nhận tồn tại
     const user = await User.findById(assignedTo);
 
     if (!user) {
@@ -224,9 +203,7 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
       });
     }
 
-    // Cập nhật người phụ trách
     task.assignedTo = user._id;
-
     await task.save();
 
     return res.status(200).json({
@@ -239,10 +216,7 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(
-      'Lỗi giao công việc:',
-      error.message
-    );
+    console.error('Lỗi giao công việc:', error.message);
 
     return res.status(500).json({
       message: 'Không thể giao công việc',
@@ -250,17 +224,98 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
   }
 });
 
-// 6. API CHỈNH SỬA CÔNG VIỆC
+// 6. API CHIA SẺ CÔNG VIỆC (MỚI)
+router.post('/:id/share', xacThuc, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    const { userId } = req.body;
+
+    // Kiểm tra ID công việc
+    if (!mongoose.isValidObjectId(taskId)) {
+      return res.status(400).json({
+        message: 'ID công việc không hợp lệ',
+      });
+    }
+
+    // Kiểm tra ID người nhận
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({
+        message: 'ID người nhận không hợp lệ',
+      });
+    }
+
+    // Chỉ người tạo mới được chia sẻ
+    const task = await Task.findOne({
+      _id: taskId,
+      createdBy: req.userId,
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message:
+          'Không tìm thấy công việc hoặc không có quyền chia sẻ',
+      });
+    }
+
+    // Không chia sẻ cho chính mình
+    if (String(userId) === String(req.userId)) {
+      return res.status(400).json({
+        message: 'Không thể chia sẻ cho chính mình',
+      });
+    }
+
+    // Kiểm tra người nhận tồn tại
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'Không tìm thấy tài khoản người nhận',
+      });
+    }
+
+    // Kiểm tra đã chia sẻ chưa
+    const daChiaSe = (task.sharedWith || []).some(
+      (id) => String(id) === String(userId)
+    );
+
+    if (daChiaSe) {
+      return res.status(400).json({
+        message: 'Công việc đã được chia sẻ cho người này',
+      });
+    }
+
+    // Thêm người nhận vào danh sách chia sẻ
+    task.sharedWith.push(user._id);
+
+    await task.save();
+
+    return res.status(200).json({
+      message: 'Chia sẻ công việc thành công',
+      task: task,
+      sharedUser: {
+        _id: user._id,
+        fullName: user.fullName || user.name || '',
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error('Lỗi chia sẻ công việc:', error.message);
+
+    return res.status(500).json({
+      message: 'Không thể chia sẻ công việc',
+    });
+  }
+});
+
+// 7. API CHỈNH SỬA CÔNG VIỆC
 router.put('/:id', xacThuc, async (req, res) => {
   try {
-    // Kiểm tra ID công việc
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
         message: 'ID công việc không hợp lệ',
       });
     }
 
-    // Chỉ người tạo được chỉnh sửa
     const task = await Task.findOne({
       _id: req.params.id,
       createdBy: req.userId,
@@ -282,21 +337,18 @@ router.put('/:id', xacThuc, async (req, res) => {
       dueDate,
     } = req.body;
 
-    // Kiểm tra tên công việc
     if (typeof title !== 'string' || !title.trim()) {
       return res.status(400).json({
         message: 'Vui lòng nhập tên công việc',
       });
     }
 
-    // Kiểm tra mức ưu tiên
     if (!['Thấp', 'Trung bình', 'Cao'].includes(priority)) {
       return res.status(400).json({
         message: 'Mức ưu tiên không hợp lệ',
       });
     }
 
-    // Kiểm tra trạng thái
     const trangThaiHopLe = [
       'Chưa thực hiện',
       'Đang thực hiện',
@@ -309,7 +361,6 @@ router.put('/:id', xacThuc, async (req, res) => {
       });
     }
 
-    // Kiểm tra ngày
     if (!startDate || !dueDate) {
       return res.status(400).json({
         message: 'Vui lòng chọn đầy đủ ngày',
@@ -334,7 +385,6 @@ router.put('/:id', xacThuc, async (req, res) => {
       });
     }
 
-    // Cập nhật công việc
     task.title = title.trim();
     task.description = description || '';
     task.priority = priority;
@@ -342,7 +392,6 @@ router.put('/:id', xacThuc, async (req, res) => {
     task.startDate = start;
     task.dueDate = due;
 
-    // Lưu thay đổi vào MongoDB
     await task.save();
 
     return res.status(200).json({
@@ -350,10 +399,7 @@ router.put('/:id', xacThuc, async (req, res) => {
       task: task,
     });
   } catch (error) {
-    console.error(
-      'Lỗi cập nhật công việc:',
-      error.message
-    );
+    console.error('Lỗi cập nhật công việc:', error.message);
 
     return res.status(500).json({
       message: 'Không thể cập nhật công việc',
@@ -361,17 +407,15 @@ router.put('/:id', xacThuc, async (req, res) => {
   }
 });
 
-// 7. API XÓA CÔNG VIỆC
+// 8. API XÓA CÔNG VIỆC
 router.delete('/:id', xacThuc, async (req, res) => {
   try {
-    // Kiểm tra ID công việc
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
         message: 'ID công việc không hợp lệ',
       });
     }
 
-    // Chỉ người tạo mới được xóa
     const task = await Task.findOneAndDelete({
       _id: req.params.id,
       createdBy: req.userId,
@@ -388,10 +432,7 @@ router.delete('/:id', xacThuc, async (req, res) => {
       message: 'Xóa công việc thành công',
     });
   } catch (error) {
-    console.error(
-      'Lỗi xóa công việc:',
-      error.message
-    );
+    console.error('Lỗi xóa công việc:', error.message);
 
     return res.status(500).json({
       message: 'Không thể xóa công việc',

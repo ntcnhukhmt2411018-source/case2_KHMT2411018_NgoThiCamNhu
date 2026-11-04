@@ -1,4 +1,5 @@
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import 'task_edit_screen.dart';
@@ -38,7 +39,44 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     capNhatTenNguoiPhuTrach();
   }
 
-  // 1. LẤY THÔNG TIN NGƯỜI PHỤ TRÁCH
+  // 1. LẤY ID TỪ OBJECT HOẶC CHUỖI
+  String layId(dynamic giaTri) {
+    if (giaTri is Map) {
+      return (giaTri['_id'] ?? giaTri['id'] ?? '').toString();
+    }
+
+    return giaTri?.toString() ?? '';
+  }
+
+  // 2. KIỂM TRA NGƯỜI ĐANG ĐĂNG NHẬP CÓ PHẢI NGƯỜI TẠO
+  bool get laNguoiTao {
+    try {
+      final parts = widget.token.split('.');
+
+      if (parts.length != 3) return false;
+
+      final payload = jsonDecode(
+        utf8.decode(
+          base64Url.decode(
+            base64Url.normalize(parts[1]),
+          ),
+        ),
+      );
+
+      if (payload is! Map) return false;
+
+      final userId = payload['id'] ?? payload['userId'];
+
+      if (userId == null) return false;
+
+      return userId.toString() ==
+          layId(congViec['createdBy']);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // 3. LẤY TÊN NGƯỜI PHỤ TRÁCH
   void capNhatTenNguoiPhuTrach() {
     final nguoiNhan = congViec['assignedTo'];
 
@@ -49,12 +87,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
       tenNguoiDuocGiao = ten?.toString();
     } else {
-      // API hiện tại có thể chỉ trả về ID
       tenNguoiDuocGiao = null;
     }
   }
 
-  // 2. ĐỊNH DẠNG NGÀY
+  // 4. ĐỊNH DẠNG NGÀY
   String hienThiNgay(dynamic ngay) {
     if (ngay == null) return 'Chưa có';
 
@@ -69,7 +106,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         '${localDate.year}';
   }
 
-  // 3. HIỂN THỊ DÒNG THÔNG TIN
+  // 5. HIỂN THỊ DÒNG THÔNG TIN
   Widget dongThongTin(
       IconData icon,
       String tieuDe,
@@ -113,7 +150,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
-  // 4. HIỂN THỊ THÔNG BÁO
+  // 6. HIỂN THỊ THÔNG BÁO
   void thongBao(
       String noiDung, {
         bool laLoi = false,
@@ -123,15 +160,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(noiDung),
-        backgroundColor:
-        laLoi ? Colors.red : mauTim,
+        backgroundColor: laLoi ? Colors.red : mauTim,
       ),
     );
   }
 
-  // 5. CHỈNH SỬA CÔNG VIỆC
+  // 7. CHỈNH SỬA CÔNG VIỆC
   Future<void> moChinhSuaCongViec() async {
-    if (dangXoa || dangGiao) return;
+    if (dangXoa || dangGiao || !laNguoiTao) return;
 
     final ketQua =
     await Navigator.push<Map<String, dynamic>>(
@@ -156,9 +192,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
-  // 6. XÓA CÔNG VIỆC
+  // 8. XÓA CÔNG VIỆC
   Future<void> xoaCongViec() async {
-    if (dangXoa || dangGiao) return;
+    if (dangXoa || dangGiao || !laNguoiTao) return;
 
     final xacNhan = await showDialog<bool>(
       context: context,
@@ -183,9 +219,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               },
               child: const Text(
                 'Xóa',
-                style: TextStyle(
-                  color: Colors.red,
-                ),
+                style: TextStyle(color: Colors.red),
               ),
             ),
           ],
@@ -218,10 +252,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       if (!mounted) return;
 
       thongBao(
-        error.toString().replaceFirst(
-          'Exception: ',
-          '',
-        ),
+        error.toString().replaceFirst('Exception: ', ''),
         laLoi: true,
       );
     } finally {
@@ -233,9 +264,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
-  // 7. MỞ HỘP THOẠI GIAO CÔNG VIỆC
+  // 9. MỞ HỘP THOẠI GIAO CÔNG VIỆC
   Future<void> moGiaoCongViec() async {
-    if (dangXoa || dangGiao) return;
+    if (dangXoa || dangGiao || !laNguoiTao) return;
 
     final taskId = congViec['_id']?.toString();
 
@@ -247,7 +278,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       return;
     }
 
-    // Hộp thoại trả về dữ liệu sau khi giao thành công
     final ketQua =
     await showDialog<Map<String, dynamic>>(
       context: context,
@@ -258,11 +288,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           taskId: taskId,
           tenCongViec:
           congViec['title']?.toString() ?? '',
+          chiaSe: false,
         );
       },
     );
 
-    // Không cập nhật State khi màn hình đã đóng
     if (!mounted || ketQua == null) return;
 
     final task = ketQua['task'];
@@ -291,7 +321,49 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     thongBao('Giao công việc thành công!');
   }
 
-  // 8. GIAO DIỆN CHI TIẾT
+  // 10. MỞ HỘP THOẠI CHIA SẺ CÔNG VIỆC
+  Future<void> moChiaSeCongViec() async {
+    if (dangXoa || dangGiao || !laNguoiTao) return;
+
+    final taskId = congViec['_id']?.toString();
+
+    if (taskId == null || taskId.isEmpty) {
+      thongBao(
+        'Không tìm thấy ID công việc',
+        laLoi: true,
+      );
+      return;
+    }
+
+    final ketQua =
+    await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return GiaoCongViecDialog(
+          token: widget.token,
+          taskId: taskId,
+          tenCongViec:
+          congViec['title']?.toString() ?? '',
+          chiaSe: true,
+        );
+      },
+    );
+
+    if (!mounted || ketQua == null) return;
+
+    final task = ketQua['task'];
+
+    if (task is Map) {
+      setState(() {
+        congViec = Map<String, dynamic>.from(task);
+      });
+    }
+
+    thongBao('Chia sẻ công việc thành công!');
+  }
+
+  // 11. GIAO DIỆN CHI TIẾT
   @override
   Widget build(BuildContext context) {
     final ten = congViec['title']?.toString() ?? '';
@@ -378,9 +450,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     dongThongTin(
                       Icons.calendar_today,
                       'Ngày bắt đầu',
-                      hienThiNgay(
-                        congViec['startDate'],
-                      ),
+                      hienThiNgay(congViec['startDate']),
                     ),
 
                     const Divider(),
@@ -388,9 +458,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     dongThongTin(
                       Icons.event,
                       'Hạn hoàn thành',
-                      hienThiNgay(
-                        congViec['dueDate'],
-                      ),
+                      hienThiNgay(congViec['dueDate']),
                     ),
                   ],
                 ),
@@ -399,92 +467,97 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
             const SizedBox(height: 24),
 
-            // NÚT GIAO CÔNG VIỆC
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed:
-                dangXoa || dangGiao
-                    ? null
-                    : moGiaoCongViec,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: mauTim,
-                  foregroundColor: Colors.white,
-                  padding:
-                  const EdgeInsets.symmetric(
-                    vertical: 14,
+            // CHỈ NGƯỜI TẠO ĐƯỢC QUẢN LÝ CÔNG VIỆC
+            if (laNguoiTao) ...[
+              // NÚT GIAO CÔNG VIỆC
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: dangXoa || dangGiao
+                      ? null
+                      : moGiaoCongViec,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: mauTim,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                    ),
                   ),
-                ),
-                icon: const Icon(
-                  Icons.person_add,
-                ),
-                label: const Text(
-                  'Giao công việc',
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Giao công việc'),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // NÚT CHỈNH SỬA VÀ XÓA
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed:
-                    dangXoa || dangGiao
-                        ? null
-                        : moChinhSuaCongViec,
-                    style:
-                    ElevatedButton.styleFrom(
-                      backgroundColor: mauTim,
-                      foregroundColor: Colors.white,
-                    ),
-                    icon: const Icon(
-                      Icons.edit,
-                    ),
-                    label: const Text(
-                      'Chỉnh sửa',
+              // NÚT CHIA SẺ CÔNG VIỆC (MỚI)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: dangXoa || dangGiao
+                      ? null
+                      : moChiaSeCongViec,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: mauTim,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
                     ),
                   ),
+                  icon: const Icon(Icons.share),
+                  label: const Text('Chia sẻ công việc'),
                 ),
+              ),
 
-                const SizedBox(width: 12),
+              const SizedBox(height: 12),
 
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed:
-                    dangXoa || dangGiao
-                        ? null
-                        : xoaCongViec,
-                    style:
-                    OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(
-                        color: Colors.red,
+              // NÚT CHỈNH SỬA VÀ XÓA
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: dangXoa || dangGiao
+                          ? null
+                          : moChinhSuaCongViec,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: mauTim,
+                        foregroundColor: Colors.white,
                       ),
-                    ),
-                    icon: dangXoa
-                        ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child:
-                      CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
-                    )
-                        : const Icon(
-                      Icons.delete,
-                    ),
-                    label: Text(
-                      dangXoa
-                          ? 'Đang xóa...'
-                          : 'Xóa',
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Chỉnh sửa'),
                     ),
                   ),
-                ),
-              ],
-            ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: dangXoa || dangGiao
+                          ? null
+                          : xoaCongViec,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(
+                          color: Colors.red,
+                        ),
+                      ),
+                      icon: dangXoa
+                          ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                          : const Icon(Icons.delete),
+                      label: Text(
+                        dangXoa ? 'Đang xóa...' : 'Xóa',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -492,18 +565,21 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 }
 
-// HỘP THOẠI GIAO CÔNG VIỆC RIÊNG
-// Giúp quản lý State và Controller an toàn hơn
+// HỘP THOẠI GIAO / CHIA SẺ CÔNG VIỆC
 class GiaoCongViecDialog extends StatefulWidget {
   final String token;
   final String taskId;
   final String tenCongViec;
+
+  // false = giao công việc, true = chia sẻ
+  final bool chiaSe;
 
   const GiaoCongViecDialog({
     super.key,
     required this.token,
     required this.taskId,
     required this.tenCongViec,
+    this.chiaSe = false,
   });
 
   @override
@@ -527,7 +603,6 @@ class _GiaoCongViecDialogState
 
   @override
   void dispose() {
-    // Chỉ giải phóng Controller khi Widget bị hủy
     emailController.dispose();
     super.dispose();
   }
@@ -579,8 +654,8 @@ class _GiaoCongViecDialogState
     }
   }
 
-  // 2. XÁC NHẬN GIAO CÔNG VIỆC
-  Future<void> xacNhanGiaoViec() async {
+  // 2. XÁC NHẬN GIAO HOẶC CHIA SẺ
+  Future<void> xacNhan() async {
     if (nguoiDuocChon == null ||
         dangTim ||
         dangLuu) {
@@ -603,8 +678,13 @@ class _GiaoCongViecDialogState
     });
 
     try {
-      final ketQua =
-      await TaskService.assignTask(
+      final ketQua = widget.chiaSe
+          ? await TaskService.shareTask(
+        token: widget.token,
+        taskId: widget.taskId,
+        userId: userId,
+      )
+          : await TaskService.assignTask(
         token: widget.token,
         taskId: widget.taskId,
         userId: userId,
@@ -612,10 +692,7 @@ class _GiaoCongViecDialogState
 
       if (!mounted) return;
 
-      // Đóng hộp thoại và trả kết quả về màn hình cha
-      // Không gọi setState sau khi Navigator.pop
       Navigator.pop(context, ketQua);
-      return;
     } catch (error) {
       if (!mounted) return;
 
@@ -632,15 +709,16 @@ class _GiaoCongViecDialogState
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text(
-        'Giao công việc',
+      title: Text(
+        widget.chiaSe
+            ? 'Chia sẻ công việc'
+            : 'Giao công việc',
       ),
 
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Công việc: ${widget.tenCongViec}',
@@ -654,15 +732,11 @@ class _GiaoCongViecDialogState
             TextField(
               controller: emailController,
               enabled: !dangTim && !dangLuu,
-              keyboardType:
-              TextInputType.emailAddress,
+              keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
                 labelText: 'Email người nhận',
-                hintText:
-                'Nhập email tài khoản',
-                prefixIcon: Icon(
-                  Icons.email,
-                ),
+                hintText: 'Nhập email tài khoản',
+                prefixIcon: Icon(Icons.email),
                 border: OutlineInputBorder(),
               ),
               onChanged: (_) {
@@ -678,22 +752,18 @@ class _GiaoCongViecDialogState
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed:
-                dangTim || dangLuu
+                onPressed: dangTim || dangLuu
                     ? null
                     : timNguoiDung,
                 icon: dangTim
                     ? const SizedBox(
                   width: 16,
                   height: 16,
-                  child:
-                  CircularProgressIndicator(
+                  child: CircularProgressIndicator(
                     strokeWidth: 2,
                   ),
                 )
-                    : const Icon(
-                  Icons.search,
-                ),
+                    : const Icon(Icons.search),
                 label: Text(
                   dangTim
                       ? 'Đang tìm...'
@@ -702,7 +772,6 @@ class _GiaoCongViecDialogState
               ),
             ),
 
-            // HIỂN THỊ TÀI KHOẢN TÌM ĐƯỢC
             if (nguoiDuocChon != null) ...[
               const SizedBox(height: 14),
 
@@ -711,18 +780,15 @@ class _GiaoCongViecDialogState
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF0ECFF),
-                  borderRadius:
-                  BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'Đã tìm thấy tài khoản',
                       style: TextStyle(
-                        fontWeight:
-                        FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                         color: mauTim,
                       ),
                     ),
@@ -737,8 +803,7 @@ class _GiaoCongViecDialogState
                     ),
 
                     Text(
-                      (nguoiDuocChon!['email'] ??
-                          '')
+                      (nguoiDuocChon!['email'] ?? '')
                           .toString(),
                     ),
                   ],
@@ -746,10 +811,8 @@ class _GiaoCongViecDialogState
               ),
             ],
 
-            // HIỂN THỊ LỖI
             if (loi != null) ...[
               const SizedBox(height: 12),
-
               Text(
                 loi!,
                 style: const TextStyle(
@@ -763,15 +826,12 @@ class _GiaoCongViecDialogState
 
       actions: [
         TextButton(
-          onPressed:
-          dangTim || dangLuu
+          onPressed: dangTim || dangLuu
               ? null
               : () {
             Navigator.pop(context);
           },
-          child: const Text(
-            'Hủy',
-          ),
+          child: const Text('Hủy'),
         ),
 
         ElevatedButton(
@@ -779,16 +839,19 @@ class _GiaoCongViecDialogState
             backgroundColor: mauTim,
             foregroundColor: Colors.white,
           ),
-          onPressed:
-          nguoiDuocChon == null ||
+          onPressed: nguoiDuocChon == null ||
               dangTim ||
               dangLuu
               ? null
-              : xacNhanGiaoViec,
+              : xacNhan,
           child: Text(
             dangLuu
-                ? 'Đang giao...'
-                : 'Xác nhận giao',
+                ? (widget.chiaSe
+                ? 'Đang chia sẻ...'
+                : 'Đang giao...')
+                : (widget.chiaSe
+                ? 'Xác nhận chia sẻ'
+                : 'Xác nhận giao'),
           ),
         ),
       ],

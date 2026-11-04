@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 // Service kết nối Flutter với API quản lý công việc
 class TaskService {
-  // Địa chỉ backend Node.js trên Android Emulator
+  // Địa chỉ backend trên Android Emulator
   static const String baseUrl =
       'http://10.0.2.2:3000/api/tasks';
 
@@ -127,7 +127,7 @@ class TaskService {
       final data = jsonDecode(response.body);
       thongBao = data['message'] ?? thongBao;
     } catch (_) {
-      // Giữ thông báo mặc định nếu server không trả JSON
+      // Giữ thông báo mặc định nếu không có JSON
     }
 
     throw Exception(thongBao);
@@ -138,7 +138,6 @@ class TaskService {
     required String token,
     required String email,
   }) async {
-    // Gửi email đến API tìm tài khoản
     final uri = Uri.parse('$baseUrl/users').replace(
       queryParameters: {
         'email': email.trim().toLowerCase(),
@@ -155,7 +154,6 @@ class TaskService {
     final data = jsonDecode(response.body);
 
     if (response.statusCode == 200) {
-      // API trả về: { user: {...} }
       return Map<String, dynamic>.from(data['user']);
     }
 
@@ -170,7 +168,6 @@ class TaskService {
     required String taskId,
     required String userId,
   }) async {
-    // Gửi yêu cầu giao công việc đến Node.js
     final response = await http.put(
       Uri.parse('$baseUrl/$taskId/assign'),
       headers: {
@@ -178,7 +175,6 @@ class TaskService {
         'Authorization': 'Bearer $token',
       },
       body: jsonEncode({
-        // ID tài khoản được giao
         'assignedTo': userId,
       }),
     );
@@ -191,6 +187,36 @@ class TaskService {
 
     throw Exception(
       data['message'] ?? 'Không thể giao công việc',
+    );
+  }
+
+  // 7. CHIA SẺ CÔNG VIỆC CHO NGƯỜI KHÁC (MỚI)
+  static Future<Map<String, dynamic>> shareTask({
+    required String token,
+    required String taskId,
+    required String userId,
+  }) async {
+    // Gọi API chia sẻ công việc
+    final response = await http.post(
+      Uri.parse('$baseUrl/$taskId/share'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        // ID người được chia sẻ
+        'userId': userId,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw Exception(
+      data['message'] ?? 'Không thể chia sẻ công việc',
     );
   }
 }
