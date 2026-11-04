@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 
 const Task = require('../models/Task');
+const User = require('../models/User');
 
 const router = express.Router();
 
@@ -25,7 +26,6 @@ function xacThuc(req, res, next) {
       process.env.JWT_SECRET
     );
 
-    // Lấy ID người dùng từ token
     const userId = decoded.id || decoded.userId;
 
     if (!mongoose.isValidObjectId(userId)) {
@@ -43,7 +43,47 @@ function xacThuc(req, res, next) {
   }
 }
 
-// 2. API TẠO CÔNG VIỆC
+// 2. API TÌM NGƯỜI DÙNG THEO EMAIL
+router.get('/users', xacThuc, async (req, res) => {
+  try {
+    const email = String(req.query.email || '')
+      .trim()
+      .toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({
+        message: 'Vui lòng nhập email người nhận',
+      });
+    }
+
+    // Chỉ tìm tài khoản có email chính xác
+    const user = await User.findOne({
+      email: email,
+    }).select('_id fullName name email');
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'Không tìm thấy tài khoản',
+      });
+    }
+
+    // Không trả về mật khẩu
+    return res.status(200).json({
+      user: user,
+    });
+  } catch (error) {
+    console.error(
+      'Lỗi tìm người dùng:',
+      error.message
+    );
+
+    return res.status(500).json({
+      message: 'Không thể tìm người dùng',
+    });
+  }
+});
+
+// 3. API TẠO CÔNG VIỆC
 router.post('/', xacThuc, async (req, res) => {
   try {
     const {
@@ -94,7 +134,7 @@ router.post('/', xacThuc, async (req, res) => {
       startDate: start,
       dueDate: due,
 
-      // Người tạo cũng là người phụ trách
+      // Ban đầu người tạo tự phụ trách
       createdBy: req.userId,
       assignedTo: req.userId,
     });
@@ -104,7 +144,10 @@ router.post('/', xacThuc, async (req, res) => {
       task: task,
     });
   } catch (error) {
-    console.error('Lỗi tạo công việc:', error.message);
+    console.error(
+      'Lỗi tạo công việc:',
+      error.message
+    );
 
     return res.status(500).json({
       message: 'Không thể tạo công việc',
@@ -112,10 +155,10 @@ router.post('/', xacThuc, async (req, res) => {
   }
 });
 
-// 3. API LẤY DANH SÁCH CÔNG VIỆC
+// 4. API LẤY DANH SÁCH CÔNG VIỆC
 router.get('/', xacThuc, async (req, res) => {
   try {
-    // Lấy công việc người dùng có quyền xem
+    // Lấy các công việc người dùng được phép xem
     const tasks = await Task.find({
       $or: [
         { createdBy: req.userId },
@@ -128,7 +171,10 @@ router.get('/', xacThuc, async (req, res) => {
       tasks: tasks,
     });
   } catch (error) {
-    console.error('Lỗi lấy công việc:', error.message);
+    console.error(
+      'Lỗi lấy công việc:',
+      error.message
+    );
 
     return res.status(500).json({
       message: 'Không thể lấy danh sách công việc',
@@ -136,7 +182,75 @@ router.get('/', xacThuc, async (req, res) => {
   }
 });
 
-// 4. API CHỈNH SỬA CÔNG VIỆC
+// 5. API GIAO CÔNG VIỆC CHO NGƯỜI KHÁC
+router.put('/:id/assign', xacThuc, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    const { assignedTo } = req.body;
+
+    // Kiểm tra ID công việc
+    if (!mongoose.isValidObjectId(taskId)) {
+      return res.status(400).json({
+        message: 'ID công việc không hợp lệ',
+      });
+    }
+
+    // Kiểm tra ID người nhận
+    if (!mongoose.isValidObjectId(assignedTo)) {
+      return res.status(400).json({
+        message: 'ID người nhận không hợp lệ',
+      });
+    }
+
+    // Chỉ người tạo được giao công việc
+    const task = await Task.findOne({
+      _id: taskId,
+      createdBy: req.userId,
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message:
+          'Không tìm thấy công việc hoặc không có quyền giao',
+      });
+    }
+
+    // Kiểm tra người nhận tồn tại
+    const user = await User.findById(assignedTo);
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'Tài khoản người nhận không tồn tại',
+      });
+    }
+
+    // Cập nhật người phụ trách
+    task.assignedTo = user._id;
+
+    await task.save();
+
+    return res.status(200).json({
+      message: 'Giao công việc thành công',
+      task: task,
+      assignee: {
+        _id: user._id,
+        fullName: user.fullName || user.name || '',
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error(
+      'Lỗi giao công việc:',
+      error.message
+    );
+
+    return res.status(500).json({
+      message: 'Không thể giao công việc',
+    });
+  }
+});
+
+// 6. API CHỈNH SỬA CÔNG VIỆC
 router.put('/:id', xacThuc, async (req, res) => {
   try {
     // Kiểm tra ID công việc
@@ -154,7 +268,8 @@ router.put('/:id', xacThuc, async (req, res) => {
 
     if (!task) {
       return res.status(404).json({
-        message: 'Không tìm thấy công việc hoặc không có quyền sửa',
+        message:
+          'Không tìm thấy công việc hoặc không có quyền sửa',
       });
     }
 
@@ -235,7 +350,10 @@ router.put('/:id', xacThuc, async (req, res) => {
       task: task,
     });
   } catch (error) {
-    console.error('Lỗi cập nhật công việc:', error.message);
+    console.error(
+      'Lỗi cập nhật công việc:',
+      error.message
+    );
 
     return res.status(500).json({
       message: 'Không thể cập nhật công việc',
@@ -243,7 +361,7 @@ router.put('/:id', xacThuc, async (req, res) => {
   }
 });
 
-// 5. API XÓA CÔNG VIỆC
+// 7. API XÓA CÔNG VIỆC
 router.delete('/:id', xacThuc, async (req, res) => {
   try {
     // Kiểm tra ID công việc
@@ -253,7 +371,7 @@ router.delete('/:id', xacThuc, async (req, res) => {
       });
     }
 
-    // Chỉ người tạo công việc mới được xóa
+    // Chỉ người tạo mới được xóa
     const task = await Task.findOneAndDelete({
       _id: req.params.id,
       createdBy: req.userId,
@@ -261,7 +379,8 @@ router.delete('/:id', xacThuc, async (req, res) => {
 
     if (!task) {
       return res.status(404).json({
-        message: 'Không tìm thấy công việc hoặc không có quyền xóa',
+        message:
+          'Không tìm thấy công việc hoặc không có quyền xóa',
       });
     }
 
@@ -269,7 +388,10 @@ router.delete('/:id', xacThuc, async (req, res) => {
       message: 'Xóa công việc thành công',
     });
   } catch (error) {
-    console.error('Lỗi xóa công việc:', error.message);
+    console.error(
+      'Lỗi xóa công việc:',
+      error.message
+    );
 
     return res.status(500).json({
       message: 'Không thể xóa công việc',

@@ -61,7 +61,8 @@ class TaskService {
     }
 
     throw Exception(
-      data['message'] ?? 'Không thể lấy danh sách công việc',
+      data['message'] ??
+          'Không thể lấy danh sách công việc',
     );
   }
 
@@ -76,7 +77,6 @@ class TaskService {
     required DateTime startDate,
     required DateTime dueDate,
   }) async {
-    // Gửi yêu cầu PUT đến Node.js
     final response = await http.put(
       Uri.parse('$baseUrl/$taskId'),
       headers: {
@@ -93,16 +93,15 @@ class TaskService {
       }),
     );
 
-    // Chuyển kết quả JSON thành dữ liệu Dart
     final data = jsonDecode(response.body);
 
-    // Cập nhật thành công
     if (response.statusCode == 200) {
       return Map<String, dynamic>.from(data);
     }
 
     throw Exception(
-      data['message'] ?? 'Không thể cập nhật công việc',
+      data['message'] ??
+          'Không thể cập nhật công việc',
     );
   }
 
@@ -111,7 +110,6 @@ class TaskService {
     required String token,
     required String taskId,
   }) async {
-    // Gửi yêu cầu DELETE đến Node.js
     final response = await http.delete(
       Uri.parse('$baseUrl/$taskId'),
       headers: {
@@ -119,12 +117,10 @@ class TaskService {
       },
     );
 
-    // Xóa thành công
     if (response.statusCode == 200) {
       return;
     }
 
-    // Đọc thông báo lỗi từ backend
     String thongBao = 'Không thể xóa công việc';
 
     try {
@@ -135,5 +131,66 @@ class TaskService {
     }
 
     throw Exception(thongBao);
+  }
+
+  // 5. TÌM NGƯỜI DÙNG THEO EMAIL
+  static Future<Map<String, dynamic>> findUserByEmail({
+    required String token,
+    required String email,
+  }) async {
+    // Gửi email đến API tìm tài khoản
+    final uri = Uri.parse('$baseUrl/users').replace(
+      queryParameters: {
+        'email': email.trim().toLowerCase(),
+      },
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      // API trả về: { user: {...} }
+      return Map<String, dynamic>.from(data['user']);
+    }
+
+    throw Exception(
+      data['message'] ?? 'Không tìm thấy tài khoản',
+    );
+  }
+
+  // 6. GIAO CÔNG VIỆC CHO NGƯỜI KHÁC
+  static Future<Map<String, dynamic>> assignTask({
+    required String token,
+    required String taskId,
+    required String userId,
+  }) async {
+    // Gửi yêu cầu giao công việc đến Node.js
+    final response = await http.put(
+      Uri.parse('$baseUrl/$taskId/assign'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        // ID tài khoản được giao
+        'assignedTo': userId,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw Exception(
+      data['message'] ?? 'Không thể giao công việc',
+    );
   }
 }
