@@ -127,7 +127,7 @@ class TaskService {
       final data = jsonDecode(response.body);
       thongBao = data['message'] ?? thongBao;
     } catch (_) {
-      // Giữ thông báo mặc định nếu không có JSON
+      // Giữ thông báo mặc định
     }
 
     throw Exception(thongBao);
@@ -162,7 +162,7 @@ class TaskService {
     );
   }
 
-  // 6. GIAO CÔNG VIỆC CHO NGƯỜI KHÁC
+  // 6. GIAO CÔNG VIỆC CHO MỘT NGƯỜI
   static Future<Map<String, dynamic>> assignTask({
     required String token,
     required String taskId,
@@ -190,13 +190,12 @@ class TaskService {
     );
   }
 
-  // 7. CHIA SẺ CÔNG VIỆC CHO NGƯỜI KHÁC (MỚI)
+  // 7. CHIA SẺ CÔNG VIỆC CHO NGƯỜI KHÁC (C.3)
   static Future<Map<String, dynamic>> shareTask({
     required String token,
     required String taskId,
     required String userId,
   }) async {
-    // Gọi API chia sẻ công việc
     final response = await http.post(
       Uri.parse('$baseUrl/$taskId/share'),
       headers: {
@@ -204,7 +203,6 @@ class TaskService {
         'Authorization': 'Bearer $token',
       },
       body: jsonEncode({
-        // ID người được chia sẻ
         'userId': userId,
       }),
     );
@@ -217,6 +215,47 @@ class TaskService {
 
     throw Exception(
       data['message'] ?? 'Không thể chia sẻ công việc',
+    );
+  }
+
+  // 8. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI (C.1)
+  static Future<Map<String, dynamic>> assignManyTasks({
+    required String token,
+    required String taskId,
+    required List<String> userIds,
+    String? primaryUserId,
+  }) async {
+    if (userIds.isEmpty) {
+      throw Exception(
+        'Vui lòng chọn ít nhất một người nhận',
+      );
+    }
+
+    // Gọi API giao công việc cho nhiều người
+    final response = await http.put(
+      Uri.parse('$baseUrl/$taskId/assign-many'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        // Danh sách ID người được giao
+        'userIds': userIds,
+
+        // ĐÃ SỬA: Sử dụng cú pháp null-aware
+        'primaryUserId': ?primaryUserId,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw Exception(
+      data['message'] ??
+          'Không thể giao công việc cho nhiều người',
     );
   }
 }
