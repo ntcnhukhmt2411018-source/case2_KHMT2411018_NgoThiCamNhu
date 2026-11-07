@@ -152,7 +152,12 @@ router.get('/', xacThuc, async (req, res) => {
         { assignedUsers: req.userId },
         { sharedWith: req.userId },
       ],
-    }).sort({ createdAt: -1 });
+    })
+      .populate('createdBy', 'fullName name email')
+      .populate('assignedTo', 'fullName name email')
+      .populate('assignedUsers', 'fullName name email')
+      .populate('sharedWith', 'fullName name email')
+      .sort({ createdAt: -1 });
 
     return res.status(200).json({
       tasks: tasks,
@@ -345,17 +350,19 @@ router.put(
         task.assignedTo = primaryUser._id;
       }
 
-      await task.save();
+     await task.save();
 
-      const assignedUsers = await User.find({
-        _id: { $in: task.assignedUsers },
-      }).select('_id fullName name email');
+     await task.populate([
+       { path: 'assignedTo', select: 'fullName name email' },
+       { path: 'assignedUsers', select: 'fullName name email' },
+       { path: 'sharedWith', select: 'fullName name email' },
+     ]);
 
-      return res.status(200).json({
-        message: 'Giao công việc cho nhiều người thành công',
-        task: task,
-        assignedUsers: assignedUsers,
-      });
+     return res.status(200).json({
+       message: 'Giao công việc cho nhiều người thành công',
+       task: task,
+       assignedUsers: task.assignedUsers,
+     });
     } catch (error) {
       console.error(
         'Lỗi giao nhiều người:',

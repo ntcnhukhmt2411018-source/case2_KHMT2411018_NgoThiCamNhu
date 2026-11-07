@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'task_edit_screen.dart';
 import '../services/task_service.dart';
 
+// =====================================================
 // MÀN HÌNH CHI TIẾT CÔNG VIỆC
+// =====================================================
+
 class TaskDetailScreen extends StatefulWidget {
   final Map<String, dynamic> task;
   final String token;
@@ -31,11 +34,19 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   String? tenNguoiDuocGiao;
 
+  final ScrollController scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
     congViec = Map<String, dynamic>.from(widget.task);
     capNhatTenNguoiPhuTrach();
+  }
+
+  @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
   }
 
   // 1. LẤY ID NGƯỜI DÙNG
@@ -50,6 +61,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   String get userIdHienTai {
     try {
       final parts = widget.token.split('.');
+
       if (parts.length != 3) return '';
 
       final payload = jsonDecode(
@@ -93,6 +105,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     if (ngay == null) return 'Chưa có';
 
     final date = DateTime.tryParse(ngay.toString());
+
     if (date == null) return 'Không hợp lệ';
 
     final localDate = date.toLocal();
@@ -102,7 +115,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         '${localDate.year}';
   }
 
-  // 6. HIỂN THỊ THÔNG TIN
+  // 6. HIỂN THỊ MỘT DÒNG THÔNG TIN
   Widget dongThongTin(
       IconData icon,
       String tieuDe,
@@ -113,7 +126,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: mauTim, size: 23),
+          Icon(
+            icon,
+            color: mauTim,
+            size: 23,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -142,7 +159,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
-  // 7. THÔNG BÁO
+  // 7. HIỂN THỊ THÔNG BÁO
   void thongBao(
       String noiDung, {
         bool laLoi = false,
@@ -198,13 +215,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, false),
+            onPressed: () {
+              Navigator.pop(dialogContext, false);
+            },
             child: const Text('Hủy'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, true),
+            onPressed: () {
+              Navigator.pop(dialogContext, true);
+            },
             child: const Text(
               'Xóa',
               style: TextStyle(color: Colors.red),
@@ -216,7 +235,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
     if (xacNhan != true || !mounted) return;
 
-    setState(() => dangXoa = true);
+    setState(() {
+      dangXoa = true;
+    });
 
     try {
       final taskId = layId(congViec['_id']);
@@ -227,6 +248,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       );
 
       if (!mounted) return;
+
       Navigator.pop(context, true);
     } catch (error) {
       thongBao(
@@ -235,19 +257,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       );
     } finally {
       if (mounted) {
-        setState(() => dangXoa = false);
+        setState(() {
+          dangXoa = false;
+        });
       }
     }
   }
 
-  // 10. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI (C.1)
+  // 10. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI
   Future<void> moGiaoCongViec() async {
     if (dangXoa || dangGiao || !laNguoiTao) return;
 
     final taskId = layId(congViec['_id']);
 
     if (taskId.isEmpty) {
-      thongBao('Không tìm thấy ID công việc', laLoi: true);
+      thongBao(
+        'Không tìm thấy ID công việc',
+        laLoi: true,
+      );
       return;
     }
 
@@ -274,6 +301,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         );
       }
 
+      if (ketQua['assignedUsers'] is List) {
+        congViec['assignedUsers'] = ketQua['assignedUsers'];
+      }
+
       capNhatTenNguoiPhuTrach();
 
       final danhSach = ketQua['assignedUsers'];
@@ -298,14 +329,17 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     thongBao('Giao công việc thành công!');
   }
 
-  // 11. CHIA SẺ CÔNG VIỆC (C.3)
+  // 11. CHIA SẺ CÔNG VIỆC
   Future<void> moChiaSeCongViec() async {
     if (dangXoa || dangGiao || !laNguoiTao) return;
 
     final taskId = layId(congViec['_id']);
 
     if (taskId.isEmpty) {
-      thongBao('Không tìm thấy ID công việc', laLoi: true);
+      thongBao(
+        'Không tìm thấy ID công việc',
+        laLoi: true,
+      );
       return;
     }
 
@@ -328,27 +362,36 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         congViec = Map<String, dynamic>.from(
           ketQua['task'],
         );
+        capNhatTenNguoiPhuTrach();
       });
     }
 
     thongBao('Chia sẻ công việc thành công!');
   }
 
-  // 12. GIAO DIỆN CHI TIẾT
+  // =====================================================
+  // 12. GIAO DIỆN CHI TIẾT + DANH SÁCH NGƯỜI ĐƯỢC GIAO
+  // =====================================================
+
   @override
   Widget build(BuildContext context) {
     final ten = congViec['title']?.toString() ?? '';
+
     final moTa = congViec['description']?.toString() ?? '';
+
     final uuTien =
         congViec['priority']?.toString() ?? 'Trung bình';
+
     final trangThai =
-        congViec['status']?.toString() ??
-            'Chưa thực hiện';
+        congViec['status']?.toString() ?? 'Chưa thực hiện';
 
     final assignedUsers = congViec['assignedUsers'];
-    final soNguoiDuocGiao = assignedUsers is List
-        ? assignedUsers.length
-        : 0;
+
+    debugPrint('ASSIGNED USERS: $assignedUsers');
+    debugPrint('ASSIGNED TO: ${congViec['assignedTo']}');
+
+    final soNguoiDuocGiao =
+    assignedUsers is List ? assignedUsers.length : 0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAF8FF),
@@ -358,164 +401,254 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         backgroundColor: mauTim,
         foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              ten,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+      body: SafeArea(
+        child: Scrollbar(
+          controller: scrollController,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: scrollController,
+            scrollDirection: Axis.vertical,
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
             ),
-            const SizedBox(height: 20),
-
-            Card(
-              color: Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    dongThongTin(
-                      Icons.description,
-                      'Mô tả',
-                      moTa.isEmpty
-                          ? 'Không có mô tả'
-                          : moTa,
-                    ),
-                    const Divider(),
-                    dongThongTin(
-                      Icons.person,
-                      'Người phụ trách chính',
-                      tenNguoiDuocGiao ??
-                          'Chưa có thông tin tên người phụ trách',
-                    ),
-                    const Divider(),
-                    dongThongTin(
-                      Icons.people,
-                      'Số người được giao',
-                      soNguoiDuocGiao > 0
-                          ? '$soNguoiDuocGiao người'
-                          : 'Chưa có danh sách',
-                    ),
-                    const Divider(),
-                    dongThongTin(
-                      Icons.flag,
-                      'Mức độ ưu tiên',
-                      uuTien,
-                    ),
-                    const Divider(),
-                    dongThongTin(
-                      Icons.pending_actions,
-                      'Trạng thái',
-                      trangThai,
-                    ),
-                    const Divider(),
-                    dongThongTin(
-                      Icons.calendar_today,
-                      'Ngày bắt đầu',
-                      hienThiNgay(congViec['startDate']),
-                    ),
-                    const Divider(),
-                    dongThongTin(
-                      Icons.event,
-                      'Hạn hoàn thành',
-                      hienThiNgay(congViec['dueDate']),
-                    ),
-                  ],
-                ),
-              ),
+            padding: const EdgeInsets.fromLTRB(
+              16, 16, 16, 40,
             ),
-
-            const SizedBox(height: 24),
-
-            if (laNguoiTao) ...[
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: dangXoa || dangGiao
-                      ? null
-                      : moGiaoCongViec,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: mauTim,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                    ),
-                  ),
-                  icon: const Icon(Icons.group_add),
-                  label: const Text(
-                    'Giao công việc cho nhiều người',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // TÊN CÔNG VIỆC
+                Text(
+                  ten,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 12),
+                const SizedBox(height: 20),
 
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: dangXoa || dangGiao
-                      ? null
-                      : moChiaSeCongViec,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: mauTim,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
+                // THẺ THÔNG TIN CÔNG VIỆC
+                Card(
+                  color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        dongThongTin(
+                          Icons.description,
+                          'Mô tả',
+                          moTa.isEmpty
+                              ? 'Không có mô tả'
+                              : moTa,
+                        ),
+
+                        const Divider(),
+
+                        dongThongTin(
+                          Icons.person,
+                          'Người phụ trách chính',
+                          tenNguoiDuocGiao ??
+                              'Chưa có thông tin tên người phụ trách',
+                        ),
+
+                        const Divider(),
+
+                        dongThongTin(
+                          Icons.people,
+                          'Số người được giao',
+                          soNguoiDuocGiao > 0
+                              ? '$soNguoiDuocGiao người'
+                              : 'Chưa có danh sách',
+                        ),
+
+                        // ==================================
+                        // DANH SÁCH NGƯỜI ĐƯỢC GIAO
+
+                        const SizedBox(height: 12),
+
+                        if (assignedUsers is List && assignedUsers.isNotEmpty) ...[
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Danh sách người được giao',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          ...assignedUsers.map((user) {
+                            if (user is Map) {
+                              final ten = (user['fullName'] ??
+                                  user['name'] ??
+                                  'Chưa có tên')
+                                  .toString();
+
+                              final email =
+                              (user['email'] ?? 'Chưa có email').toString();
+
+                              final laPhuTrachChinh =
+                                  layId(user) == layId(congViec['assignedTo']);
+
+                              return ListTile(
+                                leading: const CircleAvatar(
+                                  child: Icon(Icons.person),
+                                ),
+                                title: Text(ten),
+                                subtitle: Text(email),
+                                trailing: laPhuTrachChinh
+                                    ? const Icon(
+                                  Icons.star,
+                                  color: Colors.orange,
+                                )
+                                    : null,
+                              );
+                            }
+
+                            return ListTile(
+                              leading: const CircleAvatar(
+                                child: Icon(Icons.person),
+                              ),
+                              title: const Text('Chưa có thông tin người dùng'),
+                              subtitle: Text('ID: $user'),
+                            );
+                          }),
+                        ],
+
+                        const Divider(),
+
+                        dongThongTin(
+                          Icons.flag,
+                          'Mức độ ưu tiên',
+                          uuTien,
+                        ),
+
+                        const Divider(),
+
+                        dongThongTin(
+                          Icons.pending_actions,
+                          'Trạng thái',
+                          trangThai,
+                        ),
+
+                        const Divider(),
+
+                        dongThongTin(
+                          Icons.calendar_today,
+                          'Ngày bắt đầu',
+                          hienThiNgay(congViec['startDate']),
+                        ),
+
+                        const Divider(),
+
+                        dongThongTin(
+                          Icons.event,
+                          'Hạn hoàn thành',
+                          hienThiNgay(congViec['dueDate']),
+                        ),
+                      ],
                     ),
                   ),
-                  icon: const Icon(Icons.share),
-                  label: const Text('Chia sẻ công việc'),
                 ),
-              ),
-
-              const SizedBox(height: 12),
-
-              Row(
-                children: [
-                  Expanded(
+                // CÁC NÚT CHỨC NĂNG
+                if (laNguoiTao) ...[
+                  SizedBox(
+                    width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: dangXoa || dangGiao
                           ? null
-                          : moChinhSuaCongViec,
+                          : moGiaoCongViec,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: mauTim,
                         foregroundColor: Colors.white,
-                      ),
-                      icon: const Icon(Icons.edit),
-                      label: const Text('Chỉnh sửa'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: dangXoa || dangGiao
-                          ? null
-                          : xoaCongViec,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(
-                          color: Colors.red,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 14,
                         ),
                       ),
-                      icon: const Icon(Icons.delete),
-                      label: const Text('Xóa'),
+                      icon: const Icon(Icons.group_add),
+                      label: const Text(
+                        'Giao công việc cho nhiều người',
+                      ),
                     ),
                   ),
+
+                  const SizedBox(height: 12),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: dangXoa || dangGiao
+                          ? null
+                          : moChiaSeCongViec,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: mauTim,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
+                      ),
+                      icon: const Icon(Icons.share),
+                      label: const Text('Chia sẻ công việc'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: dangXoa || dangGiao
+                              ? null
+                              : moChinhSuaCongViec,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: mauTim,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.edit),
+                          label: const Text('Chỉnh sửa'),
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: dangXoa || dangGiao
+                              ? null
+                              : xoaCongViec,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(
+                              color: Colors.red,
+                            ),
+                          ),
+                          icon: const Icon(Icons.delete),
+                          label: const Text('Xóa'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-              ),
-            ],
-          ],
+
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
+// =====================================================
 // HỘP THOẠI GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI
+// =====================================================
+
 class GiaoNhieuNguoiDialog extends StatefulWidget {
   final String token;
   final String taskId;
@@ -565,11 +698,11 @@ class _GiaoNhieuNguoiDialogState
         ? widget.primaryUserId
         : null;
 
-    // Nạp những người đã được giao trước đó
     if (widget.assignedUsers is List) {
       for (final item in widget.assignedUsers) {
         if (item is Map) {
           final user = Map<String, dynamic>.from(item);
+
           final id = user['_id']?.toString() ?? '';
 
           if (id.isNotEmpty &&
@@ -643,7 +776,9 @@ class _GiaoNhieuNguoiDialogState
       });
     } finally {
       if (mounted) {
-        setState(() => dangTim = false);
+        setState(() {
+          dangTim = false;
+        });
       }
     }
   }
@@ -669,7 +804,6 @@ class _GiaoNhieuNguoiDialogState
     setState(() {
       danhSachNguoi.add(nguoiTimThay!);
 
-      // Mặc định người đầu tiên là phụ trách chính
       nguoiPhuTrachChinh ??= userId;
 
       nguoiTimThay = null;
@@ -678,7 +812,7 @@ class _GiaoNhieuNguoiDialogState
     });
   }
 
-  // 3. XÓA NGƯỜI KHỎI DANH SÁCH ĐANG CHỌN
+  // 3. XÓA NGƯỜI KHỎI DANH SÁCH CHỌN
   void xoaNguoi(String userId) {
     setState(() {
       danhSachNguoi.removeWhere(
@@ -744,7 +878,7 @@ class _GiaoNhieuNguoiDialogState
     }
   }
 
-  // 5. GIAO DIỆN
+  // 5. GIAO DIỆN HỘP THOẠI
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -752,6 +886,7 @@ class _GiaoNhieuNguoiDialogState
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -808,7 +943,7 @@ class _GiaoNhieuNguoiDialogState
                 ),
               ),
 
-              // TÀI KHOẢN VỪA TÌM THẤY
+              // TÀI KHOẢN TÌM THẤY
               if (nguoiTimThay != null) ...[
                 const SizedBox(height: 12),
 
@@ -819,8 +954,7 @@ class _GiaoNhieuNguoiDialogState
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Column(
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'Đã tìm thấy tài khoản',
@@ -874,7 +1008,8 @@ class _GiaoNhieuNguoiDialogState
                 final userId =
                     user['_id']?.toString() ?? '';
 
-                final ten = (user['fullName'] ??
+                final ten =
+                (user['fullName'] ??
                     user['name'] ??
                     'Người dùng')
                     .toString();
@@ -907,7 +1042,8 @@ class _GiaoNhieuNguoiDialogState
                           ),
                         ),
                         trailing: IconButton(
-                          tooltip: 'Bỏ khỏi danh sách chọn',
+                          tooltip:
+                          'Bỏ khỏi danh sách chọn',
                           onPressed: dangLuu
                               ? null
                               : () => xoaNguoi(userId),
@@ -917,7 +1053,6 @@ class _GiaoNhieuNguoiDialogState
                           ),
                         ),
                       ),
-
 
                       ListTile(
                         title: const Text(
@@ -934,11 +1069,11 @@ class _GiaoNhieuNguoiDialogState
                             ? null
                             : () {
                           setState(() {
-                            nguoiPhuTrachChinh = userId;
+                            nguoiPhuTrachChinh =
+                                userId;
                           });
                         },
                       ),
-
                     ],
                   ),
                 );
@@ -975,9 +1110,7 @@ class _GiaoNhieuNguoiDialogState
               ? null
               : xacNhanGiao,
           child: Text(
-            dangLuu
-                ? 'Đang giao...'
-                : 'Giao công việc',
+            dangLuu ? 'Đang giao...' : 'Giao công việc',
           ),
         ),
       ],
@@ -985,7 +1118,10 @@ class _GiaoNhieuNguoiDialogState
   }
 }
 
-// HỘP THOẠI CHIA SẺ CÔNG VIỆC (GIỮ NGUYÊN C.3)
+// =====================================================
+// HỘP THOẠI CHIA SẺ CÔNG VIỆC
+// =====================================================
+
 class GiaoCongViecDialog extends StatefulWidget {
   final String token;
   final String taskId;
@@ -1016,6 +1152,7 @@ class _GiaoCongViecDialogState
 
   bool dangTim = false;
   bool dangLuu = false;
+
   String? loi;
 
   @override
@@ -1024,7 +1161,7 @@ class _GiaoCongViecDialogState
     super.dispose();
   }
 
-  // TÌM TÀI KHOẢN
+  // 1. TÌM TÀI KHOẢN
   Future<void> timNguoiDung() async {
     final email =
     emailController.text.trim().toLowerCase();
@@ -1063,12 +1200,14 @@ class _GiaoCongViecDialogState
       });
     } finally {
       if (mounted) {
-        setState(() => dangTim = false);
+        setState(() {
+          dangTim = false;
+        });
       }
     }
   }
 
-  // XÁC NHẬN CHIA SẺ
+  // 2. XÁC NHẬN CHIA SẺ
   Future<void> xacNhan() async {
     if (nguoiDuocChon == null ||
         dangTim ||
@@ -1119,6 +1258,7 @@ class _GiaoCongViecDialogState
     }
   }
 
+  // 3. GIAO DIỆN CHIA SẺ
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -1128,6 +1268,7 @@ class _GiaoCongViecDialogState
             : 'Giao công việc',
       ),
       content: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1195,8 +1336,7 @@ class _GiaoCongViecDialogState
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'Đã tìm thấy tài khoản',
