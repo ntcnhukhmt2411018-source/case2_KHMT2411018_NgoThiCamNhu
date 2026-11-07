@@ -157,6 +157,7 @@ router.get('/', xacThuc, async (req, res) => {
       .populate('assignedTo', 'fullName name email')
       .populate('assignedUsers', 'fullName name email')
       .populate('sharedWith', 'fullName name email')
+      .populate('sharePermissions.user', 'fullName name email')
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -350,19 +351,19 @@ router.put(
         task.assignedTo = primaryUser._id;
       }
 
-     await task.save();
+      await task.save();
 
-     await task.populate([
-       { path: 'assignedTo', select: 'fullName name email' },
-       { path: 'assignedUsers', select: 'fullName name email' },
-       { path: 'sharedWith', select: 'fullName name email' },
-     ]);
+      await task.populate([
+        { path: 'assignedTo', select: 'fullName name email' },
+        { path: 'assignedUsers', select: 'fullName name email' },
+        { path: 'sharedWith', select: 'fullName name email' },
+      ]);
 
-     return res.status(200).json({
-       message: 'Giao công việc cho nhiều người thành công',
-       task: task,
-       assignedUsers: task.assignedUsers,
-     });
+      return res.status(200).json({
+        message: 'Giao công việc cho nhiều người thành công',
+        task: task,
+        assignedUsers: task.assignedUsers,
+      });
     } catch (error) {
       console.error(
         'Lỗi giao nhiều người:',
@@ -376,8 +377,7 @@ router.put(
   }
 );
 
-
- // 7. CHIA SẺ CÔNG VIỆC
+// 7. CHIA SẺ CÔNG VIỆC
 router.post('/:id/share', xacThuc, async (req, res) => {
   try {
     const taskId = req.params.id;
@@ -450,6 +450,14 @@ router.post('/:id/share', xacThuc, async (req, res) => {
 
     await task.save();
 
+    await task.populate([
+      { path: 'createdBy', select: 'fullName name email' },
+      { path: 'assignedTo', select: 'fullName name email' },
+      { path: 'assignedUsers', select: 'fullName name email' },
+      { path: 'sharedWith', select: 'fullName name email' },
+      { path: 'sharePermissions.user', select: 'fullName name email' },
+    ]);
+
     return res.status(200).json({
       message: 'Chia sẻ công việc thành công',
       task: task,
@@ -469,9 +477,155 @@ router.post('/:id/share', xacThuc, async (req, res) => {
   }
 });
 
+// 8. C.6 - THAY ĐỔI QUYỀN CHIA SẺ
+router.put('/:id/share/:userId', xacThuc, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const { role } = req.body;
 
+    if (
+      !mongoose.isValidObjectId(id) ||
+      !mongoose.isValidObjectId(userId)
+    ) {
+      return res.status(400).json({
+        message: 'ID không hợp lệ',
+      });
+    }
 
- // 8. CHỈNH SỬA CÔNG VIỆC
+    if (!['viewer', 'editor'].includes(role)) {
+      return res.status(400).json({
+        message: 'Quyền chia sẻ không hợp lệ',
+      });
+    }
+
+    // Chỉ người tạo công việc được đổi quyền
+    const task = await Task.findOne({
+      _id: id,
+      createdBy: req.userId,
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Không tìm thấy công việc hoặc không có quyền thay đổi',
+      });
+    }
+
+    const daChiaSe = (task.sharedWith || []).some(
+      (user) => String(user) === String(userId)
+    );
+
+    if (!daChiaSe) {
+      return res.status(404).json({
+        message: 'Người này chưa được chia sẻ công việc',
+      });
+    }
+
+    const permission = (task.sharePermissions || []).find(
+      (item) => String(item.user) === String(userId)
+    );
+
+    if (permission) {
+      permission.role = role;
+    } else {
+      task.sharePermissions.push({
+        user: userId,
+        role: role,
+      });
+    }
+
+    await task.save();
+
+    await task.populate([
+      { path: 'createdBy', select: 'fullName name email' },
+      { path: 'assignedTo', select: 'fullName name email' },
+      { path: 'assignedUsers', select: 'fullName name email' },
+      { path: 'sharedWith', select: 'fullName name email' },
+      { path: 'sharePermissions.user', select: 'fullName name email' },
+    ]);
+
+    return res.status(200).json({
+      message: 'Thay đổi quyền thành công',
+      task: task,
+    });
+  } catch (error) {
+    console.error('Lỗi thay đổi quyền:', error.message);
+
+    return res.status(500).json({
+      message: 'Không thể thay đổi quyền chia sẻ',
+    });
+  }
+});
+
+// 9. C.6 - THU HỒI QUYỀN CHIA SẺ
+router.delete('/:id/share/:userId', xacThuc, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+
+    if (
+      !mongoose.isValidObjectId(id) ||
+      !mongoose.isValidObjectId(userId)
+    ) {
+      return res.status(400).json({
+        message: 'ID không hợp lệ',
+      });
+    }
+
+    // Chỉ người tạo công việc được thu hồi quyền
+    const task = await Task.findOne({
+      _id: id,
+      createdBy: req.userId,
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Không tìm thấy công việc hoặc không có quyền thu hồi',
+      });
+    }
+
+    const daChiaSe = (task.sharedWith || []).some(
+      (user) => String(user) === String(userId)
+    );
+
+    if (!daChiaSe) {
+      return res.status(404).json({
+        message: 'Người này chưa được chia sẻ công việc',
+      });
+    }
+
+    // Xóa khỏi danh sách chia sẻ
+    task.sharedWith = task.sharedWith.filter(
+      (user) => String(user) !== String(userId)
+    );
+
+    // Xóa quyền Viewer / Editor
+    task.sharePermissions = task.sharePermissions.filter(
+      (item) => String(item.user) !== String(userId)
+    );
+
+    await task.save();
+
+    await task.populate([
+      { path: 'createdBy', select: 'fullName name email' },
+      { path: 'assignedTo', select: 'fullName name email' },
+      { path: 'assignedUsers', select: 'fullName name email' },
+      { path: 'sharedWith', select: 'fullName name email' },
+      { path: 'sharePermissions.user', select: 'fullName name email' },
+    ]);
+
+    return res.status(200).json({
+      message: 'Thu hồi quyền chia sẻ thành công',
+      task: task,
+    });
+  } catch (error) {
+    console.error('Lỗi thu hồi quyền:', error.message);
+
+    return res.status(500).json({
+      message: 'Không thể thu hồi quyền chia sẻ',
+    });
+  }
+});
+
+// 10. CHỈNH SỬA CÔNG VIỆC
 router.put('/:id', xacThuc, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -596,8 +750,7 @@ router.put('/:id', xacThuc, async (req, res) => {
   }
 });
 
-
-// 9. XÓA CÔNG VIỆC
+// 11. XÓA CÔNG VIỆC
 router.delete('/:id', xacThuc, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {

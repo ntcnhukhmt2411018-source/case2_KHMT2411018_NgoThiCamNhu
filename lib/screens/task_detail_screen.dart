@@ -31,6 +31,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   bool dangXoa = false;
   bool dangGiao = false;
+  bool dangQuanLyQuyen = false;
 
   String? tenNguoiDuocGiao;
 
@@ -392,6 +393,111 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   // 12. GIAO DIỆN CHI TIẾT + DANH SÁCH NGƯỜI ĐƯỢC GIAO
   // =====================================================
 
+  // THAY ĐỔI QUYỀN CHIA SẺ
+  Future<void> thayDoiQuyen(String userId, String role) async {
+    if (!laNguoiTao || dangQuanLyQuyen) return;
+
+    setState(() {
+      dangQuanLyQuyen = true;
+    });
+
+    try {
+      final ketQua = await TaskService.updateSharePermission(
+        token: widget.token,
+        taskId: layId(congViec['_id']),
+        userId: userId,
+        role: role,
+      );
+
+      if (!mounted) return;
+
+      if (ketQua['task'] is Map) {
+        setState(() {
+          congViec = Map<String, dynamic>.from(ketQua['task']);
+          capNhatTenNguoiPhuTrach();
+        });
+      }
+
+      thongBao('Thay đổi quyền thành công!');
+    } catch (error) {
+      thongBao(
+        error.toString().replaceFirst('Exception: ', ''),
+        laLoi: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          dangQuanLyQuyen = false;
+        });
+      }
+    }
+  }
+
+  // THU HỒI QUYỀN CHIA SẺ
+  Future<void> thuHoiQuyen(String userId) async {
+    if (!laNguoiTao || dangQuanLyQuyen) return;
+
+    final xacNhan = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Thu hồi quyền'),
+        content: const Text(
+          'Bạn có chắc muốn thu hồi quyền chia sẻ của người này?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              'Thu hồi',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (xacNhan != true || !mounted) return;
+
+    setState(() {
+      dangQuanLyQuyen = true;
+    });
+
+    try {
+      final ketQua = await TaskService.revokeSharePermission(
+        token: widget.token,
+        taskId: layId(congViec['_id']),
+        userId: userId,
+      );
+
+      if (!mounted) return;
+
+      if (ketQua['task'] is Map) {
+        setState(() {
+          congViec = Map<String, dynamic>.from(ketQua['task']);
+          capNhatTenNguoiPhuTrach();
+        });
+      }
+
+      thongBao('Thu hồi quyền thành công!');
+    } catch (error) {
+      thongBao(
+        error.toString().replaceFirst('Exception: ', ''),
+        laLoi: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          dangQuanLyQuyen = false;
+        });
+      }
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final ten = congViec['title']?.toString() ?? '';
@@ -405,7 +511,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         congViec['status']?.toString() ?? 'Chưa thực hiện';
 
     final assignedUsers = congViec['assignedUsers'];
-
+    final sharedWith = congViec['sharedWith'];
+    final sharePermissions = congViec['sharePermissions'];
     debugPrint('ASSIGNED USERS: $assignedUsers');
     debugPrint('ASSIGNED TO: ${congViec['assignedTo']}');
 
@@ -545,6 +652,127 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                           'Mức độ ưu tiên',
                           uuTien,
                         ),
+
+
+                        // DANH SÁCH NGƯỜI ĐƯỢC CHIA SẺ
+                        const SizedBox(height: 16),
+
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Danh sách người được chia sẻ',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        if (sharedWith is List && sharedWith.isNotEmpty)
+                          ...sharedWith.map((user) {
+                            final userId = layId(user);
+
+                            String ten = 'Chưa có tên';
+                            String email = 'Chưa có email';
+
+                            if (user is Map) {
+                              ten = (user['fullName'] ??
+                                  user['name'] ??
+                                  'Chưa có tên')
+                                  .toString();
+
+                              email = (user['email'] ??
+                                  'Chưa có email')
+                                  .toString();
+                            }
+
+                            String quyen = 'Viewer';
+
+                            if (sharePermissions is List) {
+                              for (final item in sharePermissions) {
+                                if (item is Map &&
+                                    layId(item['user']) == userId) {
+                                  quyen = item['role'] == 'editor'
+                                      ? 'Editor'
+                                      : 'Viewer';
+                                  break;
+                                }
+                              }
+                            }
+
+
+                            return ListTile(
+                              leading: const CircleAvatar(
+                                child: Icon(Icons.person),
+                              ),
+                              title: Text(ten),
+                              subtitle: Text(email),
+
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Hiển thị quyền hiện tại
+                                  Chip(
+                                    label: Text(quyen),
+                                  ),
+
+                                  //Chỉ người tạo được quản lý quyền
+                                  if (laNguoiTao)
+                                    PopupMenuButton<String>(
+                                      enabled: !dangQuanLyQuyen,
+                                      tooltip: 'Quản lý quyền',
+                                      icon: const Icon(Icons.more_vert),
+
+                                      onSelected: (giaTri) async {
+                                        if (giaTri == 'viewer') {
+                                          await thayDoiQuyen(userId, 'viewer');
+                                        } else if (giaTri == 'editor') {
+                                          await thayDoiQuyen(userId, 'editor');
+                                        } else if (giaTri == 'revoke') {
+                                          await thuHoiQuyen(userId);
+                                        }
+                                      },
+
+                                      itemBuilder: (context) => [
+                                        const PopupMenuItem<String>(
+                                          value: 'viewer',
+                                          child: Text('Đổi thành Viewer'),
+                                        ),
+
+                                        const PopupMenuItem<String>(
+                                          value: 'editor',
+                                          child: Text('Đổi thành Editor'),
+                                        ),
+
+                                        const PopupMenuDivider(),
+
+                                        const PopupMenuItem<String>(
+                                          value: 'revoke',
+                                          child: Text(
+                                            'Thu hồi quyền',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                            );
+                          })
+
+                        else
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Chưa chia sẻ cho người nào',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          ),
 
                         const Divider(),
 

@@ -190,7 +190,8 @@ class TaskService {
     );
   }
 
-  // 7. CHIA SẺ CÔNG VIỆC VÀ PHÂN QUYỀN (C.3 + C.4)
+
+// 7. CHIA SẺ CÔNG VIỆC VÀ PHÂN QUYỀN
   static Future<Map<String, dynamic>> shareTask({
     required String token,
     required String taskId,
@@ -224,6 +225,65 @@ class TaskService {
       data['message'] ?? 'Không thể chia sẻ công việc',
     );
   }
+
+// 8. C.6 - THAY ĐỔI QUYỀN VIEWER / EDITOR
+  static Future<Map<String, dynamic>> updateSharePermission({
+    required String token,
+    required String taskId,
+    required String userId,
+    required String role,
+  }) async {
+    if (role != 'viewer' && role != 'editor') {
+      throw Exception('Quyền chia sẻ không hợp lệ');
+    }
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/$taskId/share/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'role': role,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw Exception(
+      data['message'] ?? 'Không thể thay đổi quyền chia sẻ',
+    );
+  }
+
+// 9. C.6 - THU HỒI QUYỀN CHIA SẺ
+  static Future<Map<String, dynamic>> revokeSharePermission({
+    required String token,
+    required String taskId,
+    required String userId,
+  }) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/$taskId/share/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw Exception(
+      data['message'] ?? 'Không thể thu hồi quyền chia sẻ',
+    );
+  }
+
 
   // 8. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI (C.1)
   static Future<Map<String, dynamic>> assignManyTasks({
