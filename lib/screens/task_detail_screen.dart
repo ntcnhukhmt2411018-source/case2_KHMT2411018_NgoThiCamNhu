@@ -84,7 +84,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     return userIdHienTai.isNotEmpty &&
         userIdHienTai == layId(congViec['createdBy']);
   }
+// KIỂM TRA QUYỀN EDITOR
+  bool get laEditor {
+    final permissions = congViec['sharePermissions'];
+    final sharedWith = congViec['sharedWith'];
 
+    if (permissions is! List || sharedWith is! List) {
+      return false;
+    }
+
+    return sharedWith.any(
+          (user) => layId(user) == userIdHienTai,
+    ) && permissions.any(
+          (item) =>
+      item is Map &&
+          layId(item['user']) == userIdHienTai &&
+          item['role'] == 'editor',
+    );
+  }
   // 4. LẤY TÊN NGƯỜI PHỤ TRÁCH
   void capNhatTenNguoiPhuTrach() {
     final nguoiNhan = congViec['assignedTo'];
@@ -176,7 +193,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   // 8. CHỈNH SỬA CÔNG VIỆC
   Future<void> moChinhSuaCongViec() async {
-    if (dangXoa || dangGiao || !laNguoiTao) return;
+    if (dangXoa || dangGiao || !(laNguoiTao || laEditor)) {
+      return;
+    }
 
     final ketQua =
     await Navigator.push<Map<String, dynamic>>(
@@ -597,41 +616,48 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   ),
 
                   const SizedBox(height: 12),
+                ],
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: dangXoa || dangGiao
-                              ? null
-                              : moChinhSuaCongViec,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: mauTim,
-                            foregroundColor: Colors.white,
-                          ),
-                          icon: const Icon(Icons.edit),
-                          label: const Text('Chỉnh sửa'),
+                // OWNER VÀ EDITOR ĐƯỢC CHỈNH SỬA
+                if (laNguoiTao || laEditor) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: dangXoa || dangGiao
+                          ? null
+                          : moChinhSuaCongViec,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: mauTim,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 14,
                         ),
                       ),
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Chỉnh sửa'),
+                    ),
+                  ),
 
-                      const SizedBox(width: 12),
+                  const SizedBox(height: 12),
+                ],
 
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: dangXoa || dangGiao
-                              ? null
-                              : xoaCongViec,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red,
-                            side: const BorderSide(
-                              color: Colors.red,
-                            ),
-                          ),
-                          icon: const Icon(Icons.delete),
-                          label: const Text('Xóa'),
+                // CHỈ NGƯỜI TẠO ĐƯỢC XÓA
+                if (laNguoiTao) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: dangXoa || dangGiao
+                          ? null
+                          : xoaCongViec,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(
+                          color: Colors.red,
                         ),
                       ),
-                    ],
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Xóa'),
+                    ),
                   ),
                 ],
 
@@ -1154,6 +1180,7 @@ class _GiaoCongViecDialogState
   bool dangLuu = false;
 
   String? loi;
+  String quyenChiaSe = 'viewer';
 
   @override
   void dispose() {
@@ -1236,6 +1263,7 @@ class _GiaoCongViecDialogState
         token: widget.token,
         taskId: widget.taskId,
         userId: userId,
+        role: quyenChiaSe,
       )
           : await TaskService.assignTask(
         token: widget.token,
@@ -1361,6 +1389,51 @@ class _GiaoCongViecDialogState
               ),
             ],
 
+
+            // C.4 - CHỌN QUYỀN CHIA SẺ
+            if (widget.chiaSe) ...[
+              const SizedBox(height: 16),
+
+              const Text(
+                'Quyền chia sẻ',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              RadioListTile<String>(
+                title: const Text('Viewer'),
+                subtitle: const Text('Chỉ được xem công việc'),
+                value: 'viewer',
+                groupValue: quyenChiaSe,
+                onChanged: dangLuu
+                    ? null
+                    : (value) {
+                  setState(() {
+                    quyenChiaSe = value!;
+                  });
+                },
+              ),
+
+              RadioListTile<String>(
+                title: const Text('Editor'),
+                subtitle: const Text(
+                  'Được xem và chỉnh sửa công việc',
+                ),
+                value: 'editor',
+                groupValue: quyenChiaSe,
+                onChanged: dangLuu
+                    ? null
+                    : (value) {
+                  setState(() {
+                    quyenChiaSe = value!;
+                  });
+                },
+              ),
+            ],
+
+            // HIỂN THỊ THÔNG BÁO LỖI
             if (loi != null) ...[
               const SizedBox(height: 12),
               Text(
@@ -1373,6 +1446,7 @@ class _GiaoCongViecDialogState
           ],
         ),
       ),
+
       actions: [
         TextButton(
           onPressed: dangTim || dangLuu

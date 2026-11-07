@@ -376,11 +376,12 @@ router.put(
   }
 );
 
-// 7. CHIA SẺ CÔNG VIỆC CHO NHIỀU NGƯỜI (C.3)
+
+ // 7. CHIA SẺ CÔNG VIỆC
 router.post('/:id/share', xacThuc, async (req, res) => {
   try {
     const taskId = req.params.id;
-    const { userId } = req.body;
+    const { userId, role = 'viewer' } = req.body;
 
     if (!mongoose.isValidObjectId(taskId)) {
       return res.status(400).json({
@@ -394,6 +395,14 @@ router.post('/:id/share', xacThuc, async (req, res) => {
       });
     }
 
+    // Kiểm tra quyền Viewer / Editor
+    if (!['viewer', 'editor'].includes(role)) {
+      return res.status(400).json({
+        message: 'Quyền chia sẻ không hợp lệ',
+      });
+    }
+
+    // Chỉ người tạo được chia sẻ
     const task = await Task.findOne({
       _id: taskId,
       createdBy: req.userId,
@@ -401,8 +410,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
 
     if (!task) {
       return res.status(404).json({
-        message:
-          'Không tìm thấy công việc hoặc không có quyền chia sẻ',
+        message: 'Không tìm thấy công việc hoặc không có quyền chia sẻ',
       });
     }
 
@@ -420,6 +428,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
       });
     }
 
+    // Kiểm tra người dùng đã được chia sẻ chưa
     const daChiaSe = (task.sharedWith || []).some(
       (id) => String(id) === String(userId)
     );
@@ -430,7 +439,14 @@ router.post('/:id/share', xacThuc, async (req, res) => {
       });
     }
 
+    // Lưu người được chia sẻ
     task.sharedWith.push(user._id);
+
+    // Lưu quyền chia sẻ
+    task.sharePermissions.push({
+      user: user._id,
+      role: role,
+    });
 
     await task.save();
 
@@ -441,6 +457,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
         _id: user._id,
         fullName: user.fullName || user.name || '',
         email: user.email,
+        role: role,
       },
     });
   } catch (error) {
@@ -452,7 +469,9 @@ router.post('/:id/share', xacThuc, async (req, res) => {
   }
 });
 
-// 8. CHỈNH SỬA CÔNG VIỆC
+
+
+ // 8. CHỈNH SỬA CÔNG VIỆC
 router.put('/:id', xacThuc, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -461,18 +480,38 @@ router.put('/:id', xacThuc, async (req, res) => {
       });
     }
 
-    const task = await Task.findOne({
-      _id: req.params.id,
-      createdBy: req.userId,
-    });
+    // Tìm công việc
+    const task = await Task.findById(req.params.id);
 
     if (!task) {
       return res.status(404).json({
-        message:
-          'Không tìm thấy công việc hoặc không có quyền sửa',
+        message: 'Không tìm thấy công việc',
       });
     }
 
+    // Kiểm tra người tạo công việc
+    const laNguoiTao =
+      String(task.createdBy) === String(req.userId);
+
+    // Kiểm tra quyền Editor
+    const quyenChiaSe = (task.sharePermissions || []).find(
+      (item) => String(item.user) === String(req.userId)
+    );
+
+    const laEditor =
+      quyenChiaSe?.role === 'editor' &&
+      (task.sharedWith || []).some(
+        (id) => String(id) === String(req.userId)
+      );
+
+    // Chỉ Owner và Editor được chỉnh sửa
+    if (!laNguoiTao && !laEditor) {
+      return res.status(403).json({
+        message: 'Bạn không có quyền chỉnh sửa công việc này',
+      });
+    }
+
+    // Lấy dữ liệu chỉnh sửa
     const {
       title,
       description,
@@ -482,18 +521,21 @@ router.put('/:id', xacThuc, async (req, res) => {
       dueDate,
     } = req.body;
 
+    // Kiểm tra tên công việc
     if (typeof title !== 'string' || !title.trim()) {
       return res.status(400).json({
         message: 'Vui lòng nhập tên công việc',
       });
     }
 
+    // Kiểm tra mức độ ưu tiên
     if (!['Thấp', 'Trung bình', 'Cao'].includes(priority)) {
       return res.status(400).json({
         message: 'Mức ưu tiên không hợp lệ',
       });
     }
 
+    // Kiểm tra trạng thái
     const trangThaiHopLe = [
       'Chưa thực hiện',
       'Đang thực hiện',
@@ -506,6 +548,7 @@ router.put('/:id', xacThuc, async (req, res) => {
       });
     }
 
+    // Kiểm tra ngày
     if (!startDate || !dueDate) {
       return res.status(400).json({
         message: 'Vui lòng chọn đầy đủ ngày',
@@ -530,6 +573,7 @@ router.put('/:id', xacThuc, async (req, res) => {
       });
     }
 
+    // Cập nhật công việc
     task.title = title.trim();
     task.description = description || '';
     task.priority = priority;
@@ -551,6 +595,7 @@ router.put('/:id', xacThuc, async (req, res) => {
     });
   }
 });
+
 
 // 9. XÓA CÔNG VIỆC
 router.delete('/:id', xacThuc, async (req, res) => {

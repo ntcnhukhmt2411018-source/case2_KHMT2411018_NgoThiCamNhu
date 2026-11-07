@@ -31,7 +31,7 @@ const taskSchema = new mongoose.Schema(
       required: true,
     },
 
-    // DANH SÁCH NGƯỜI ĐƯỢC GIAO CÔNG VIỆC (MỚI)
+    // Danh sách người được giao công việc
     assignedUsers: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -74,6 +74,25 @@ const taskSchema = new mongoose.Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
+      },
+    ],
+
+    //  PHÂN QUYỀN CHIA SẺ
+    sharePermissions: [
+      {
+        // Người được chia sẻ
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+
+        // Quyền của người được chia sẻ
+        role: {
+          type: String,
+          enum: ['viewer', 'editor'],
+          default: 'viewer',
+        },
       },
     ],
   },

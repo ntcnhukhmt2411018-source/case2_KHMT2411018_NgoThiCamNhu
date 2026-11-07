@@ -190,12 +190,18 @@ class TaskService {
     );
   }
 
-  // 7. CHIA SẺ CÔNG VIỆC CHO NGƯỜI KHÁC (C.3)
+  // 7. CHIA SẺ CÔNG VIỆC VÀ PHÂN QUYỀN (C.3 + C.4)
   static Future<Map<String, dynamic>> shareTask({
     required String token,
     required String taskId,
     required String userId,
+    String role = 'viewer',
   }) async {
+    // Kiểm tra quyền chia sẻ
+    if (role != 'viewer' && role != 'editor') {
+      throw Exception('Quyền chia sẻ không hợp lệ');
+    }
+
     final response = await http.post(
       Uri.parse('$baseUrl/$taskId/share'),
       headers: {
@@ -204,6 +210,7 @@ class TaskService {
       },
       body: jsonEncode({
         'userId': userId,
+        'role': role,
       }),
     );
 
@@ -242,8 +249,9 @@ class TaskService {
         // Danh sách ID người được giao
         'userIds': userIds,
 
-        // ĐÃ SỬA: Sử dụng cú pháp null-aware
-        'primaryUserId': ?primaryUserId,
+        // Chỉ gửi primaryUserId nếu có giá trị
+        if (primaryUserId != null)
+          'primaryUserId': primaryUserId,
       }),
     );
 
