@@ -1,4 +1,3 @@
-
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
@@ -92,14 +91,14 @@ Trân trọng,
 Task Manager
 `;
 
-    return await guiEmail(
+    return (await guiEmail(
       user.email,
       tieuDe,
       noiDung
-    );
+    )) === true;
   } catch (error) {
     console.error(
-      'Lỗi gửi email:',
+      'Lỗi gửi email giao việc:',
       error.message
     );
     return false;
@@ -107,7 +106,7 @@ Task Manager
 }
 
 // ========================================
-// 3. GỬI EMAIL MỜI CHIA SẺ CÔNG VIỆC - D.2
+// 3. GỬI EMAIL MỜI CHIA SẺ - D.2
 // ========================================
 async function guiEmailMoiChiaSe(
   task,
@@ -171,7 +170,67 @@ Task Manager
 }
 
 // ========================================
-// 4. TẠO THÔNG BÁO MONGODB - D.7
+// 4. GỬI EMAIL KHI THÔNG TIN THAY ĐỔI - D.3
+// ========================================
+async function guiEmailThayDoiCongViec(
+  task,
+  user,
+  nguoiSua,
+  danhSachThayDoi
+) {
+  try {
+    if (!user?.email || danhSachThayDoi.length === 0) {
+      return false;
+    }
+
+    const tenNguoiNhan = layTenNguoiDung(user);
+    const tenNguoiSua = layTenNguoiDung(nguoiSua);
+
+    const tieuDe =
+      `Task Manager - Công việc được cập nhật: ${task.title}`;
+
+    const noiDung = `
+Xin chào ${tenNguoiNhan}!
+
+${tenNguoiSua} vừa cập nhật thông tin công việc
+"${task.title}" trong Task Manager.
+
+NHỮNG THÔNG TIN ĐÃ THAY ĐỔI
+
+${danhSachThayDoi.join('\n')}
+
+Vui lòng đăng nhập ứng dụng Task Manager
+để xem thông tin công việc mới nhất.
+
+Trân trọng,
+Task Manager
+`;
+
+    return (await guiEmail(
+      user.email,
+      tieuDe,
+      noiDung
+    )) === true;
+  } catch (error) {
+    console.error(
+      'Lỗi gửi email cập nhật công việc:',
+      error.message
+    );
+    return false;
+  }
+}
+
+function dinhDangNgayD3(ngay) {
+  if (!ngay) return 'Chưa xác định';
+
+  return new Date(ngay).toLocaleDateString(
+    'vi-VN',
+    { timeZone: 'Asia/Ho_Chi_Minh' }
+  );
+}
+
+// ========================================
+// 5. TẠO THÔNG BÁO MONGODB - D.7
 // ========================================
 async function taoThongBao({
   recipient,
@@ -217,7 +276,7 @@ function layTenNguoiDung(user) {
 }
 
 // ========================================
-// 5. TÌM NGƯỜI DÙNG THEO EMAIL
+// 6. TÌM NGƯỜI DÙNG THEO EMAIL
 // ========================================
 router.get('/users', xacThuc, async (req, res) => {
   try {
@@ -250,7 +309,7 @@ router.get('/users', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 6. TẠO CÔNG VIỆC
+// 7. TẠO CÔNG VIỆC
 // ========================================
 router.post('/', xacThuc, async (req, res) => {
   try {
@@ -320,7 +379,7 @@ router.post('/', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 7. LẤY DANH SÁCH CÔNG VIỆC
+// 8. LẤY DANH SÁCH CÔNG VIỆC
 // ========================================
 router.get('/', xacThuc, async (req, res) => {
   try {
@@ -356,7 +415,7 @@ router.get('/', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 8. GIAO CÔNG VIỆC CHO MỘT NGƯỜI
+// 9. GIAO CÔNG VIỆC CHO MỘT NGƯỜI
 // D.1: GỬI EMAIL
 // D.7: TẠO THÔNG BÁO
 // ========================================
@@ -458,7 +517,7 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 9. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI
+// 10. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI
 // ========================================
 router.put(
   '/:id/assign-many',
@@ -648,7 +707,7 @@ router.put(
 );
 
 // ========================================
-// 10. CHIA SẺ CÔNG VIỆC
+// 11. CHIA SẺ CÔNG VIỆC
 // D.2: GỬI EMAIL MỜI XEM / THAM GIA
 // D.7: TẠO THÔNG BÁO TRONG ỨNG DỤNG
 // ========================================
@@ -708,7 +767,6 @@ router.post('/:id/share', xacThuc, async (req, res) => {
       });
     }
 
-    // Lưu quyền chia sẻ vào MongoDB
     task.sharedWith.push(user._id);
 
     task.sharePermissions.push({
@@ -722,7 +780,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
       req.userId
     );
 
-    // D.7: Thông báo trong ứng dụng
+    // D.7 - Thông báo trong ứng dụng
     await taoThongBao({
       recipient: user._id,
       sender: req.userId,
@@ -734,8 +792,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
       type: 'task_shared',
     });
 
-    // D.2: Gửi email mời chia sẻ
-    // Nếu email thất bại, dữ liệu chia sẻ vẫn được lưu
+    // D.2 - Gửi email mời chia sẻ
     const daGuiEmailMoi = await guiEmailMoiChiaSe(
       task,
       user,
@@ -790,7 +847,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 11. THAY ĐỔI QUYỀN CHIA SẺ
+// 12. THAY ĐỔI QUYỀN CHIA SẺ
 // ========================================
 router.put(
   '/:id/share/:userId',
@@ -891,7 +948,7 @@ router.put(
 );
 
 // ========================================
-// 12. THU HỒI QUYỀN CHIA SẺ
+// 13. THU HỒI QUYỀN CHIA SẺ
 // ========================================
 router.delete(
   '/:id/share/:userId',
@@ -979,7 +1036,8 @@ router.delete(
 );
 
 // ========================================
-// 13. CHỈNH SỬA CÔNG VIỆC
+// 14. CHỈNH SỬA CÔNG VIỆC
+// D.3: GỬI EMAIL KHI THÔNG TIN THAY ĐỔI
 // ========================================
 router.put('/:id', xacThuc, async (req, res) => {
   try {
@@ -1078,6 +1136,49 @@ router.put('/:id', xacThuc, async (req, res) => {
       });
     }
 
+    // D.3 - So sánh thông tin cũ và mới
+    const danhSachThayDoi = [];
+
+    if (task.title !== title.trim()) {
+      danhSachThayDoi.push(
+        `Tên công việc: ${task.title} -> ${title.trim()}`
+      );
+    }
+
+    if ((task.description || '') !== (description || '')) {
+      danhSachThayDoi.push(
+        `Mô tả: ${task.description || 'Không có'} ` +
+        `-> ${description || 'Không có'}`
+      );
+    }
+
+    if (task.priority !== priority) {
+      danhSachThayDoi.push(
+        `Mức ưu tiên: ${task.priority} -> ${priority}`
+      );
+    }
+
+    if (
+      new Date(task.startDate).getTime() !==
+      start.getTime()
+    ) {
+      danhSachThayDoi.push(
+        `Ngày bắt đầu: ${dinhDangNgayD3(task.startDate)} ` +
+        `-> ${dinhDangNgayD3(start)}`
+      );
+    }
+
+    if (
+      new Date(task.dueDate).getTime() !==
+      due.getTime()
+    ) {
+      danhSachThayDoi.push(
+        `Hạn hoàn thành: ${dinhDangNgayD3(task.dueDate)} ` +
+        `-> ${dinhDangNgayD3(due)}`
+      );
+    }
+
+    // Lưu thông tin công việc mới
     task.title = title.trim();
     task.description = description || '';
     task.priority = priority;
@@ -1087,9 +1188,63 @@ router.put('/:id', xacThuc, async (req, res) => {
 
     await task.save();
 
+    // D.3 - Gửi email cho những người liên quan
+    let soEmailThanhCong = 0;
+    let soEmailThatBai = 0;
+
+    if (danhSachThayDoi.length > 0) {
+      const danhSachId = [
+        task.createdBy,
+        task.assignedTo,
+        ...(task.assignedUsers || []),
+        ...(task.sharedWith || []),
+      ];
+
+      const uniqueIds = [
+        ...new Set(
+          danhSachId
+            .filter(Boolean)
+            .map((id) => String(id))
+        ),
+      ].filter(
+        (id) => id !== String(req.userId)
+      );
+
+      if (uniqueIds.length > 0) {
+        const nguoiNhan = await User.find({
+          _id: { $in: uniqueIds },
+        }).select('fullName name email');
+
+        const nguoiSua = await User.findById(
+          req.userId
+        ).select('fullName name email');
+
+        const ketQuaGui = await Promise.all(
+          nguoiNhan.map((user) =>
+            guiEmailThayDoiCongViec(
+              task,
+              user,
+              nguoiSua,
+              danhSachThayDoi
+            )
+          )
+        );
+
+        soEmailThanhCong = ketQuaGui.filter(
+          (ketQua) => ketQua === true
+        ).length;
+
+        soEmailThatBai =
+          nguoiNhan.length - soEmailThanhCong;
+      }
+    }
+
     return res.json({
       message: 'Cập nhật công việc thành công',
       task,
+      changes: danhSachThayDoi,
+      emailSuccess: soEmailThanhCong,
+      emailFailed: soEmailThatBai,
     });
   } catch (error) {
     console.error(
@@ -1104,7 +1259,7 @@ router.put('/:id', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 14. XÓA CÔNG VIỆC
+// 15. XÓA CÔNG VIỆC
 // ========================================
 router.delete('/:id', xacThuc, async (req, res) => {
   try {
