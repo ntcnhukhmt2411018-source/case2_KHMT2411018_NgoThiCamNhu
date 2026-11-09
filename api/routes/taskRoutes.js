@@ -107,7 +107,71 @@ Task Manager
 }
 
 // ========================================
-// 3. TẠO THÔNG BÁO TRONG MONGODB - D.7
+// 3. GỬI EMAIL MỜI CHIA SẺ CÔNG VIỆC - D.2
+// ========================================
+async function guiEmailMoiChiaSe(
+  task,
+  user,
+  nguoiMoi,
+  role
+) {
+  try {
+    if (!user || !user.email) return false;
+
+    const tenNguoiNhan = layTenNguoiDung(user);
+    const tenNguoiMoi = layTenNguoiDung(nguoiMoi);
+
+    const quyen = role === 'editor'
+      ? 'Tham gia và chỉnh sửa công việc (editor)'
+      : 'Xem công việc (viewer)';
+
+    const ngayHetHan = task.dueDate
+      ? new Date(task.dueDate).toLocaleDateString(
+          'vi-VN',
+          { timeZone: 'Asia/Ho_Chi_Minh' }
+        )
+      : 'Chưa xác định';
+
+    const tieuDe =
+      `Task Manager - Lời mời tham gia công việc: ${task.title}`;
+
+    const noiDung = `
+Xin chào ${tenNguoiNhan}!
+
+${tenNguoiMoi} vừa mời bạn xem hoặc tham gia
+một công việc trong Task Manager.
+
+THÔNG TIN CÔNG VIỆC
+
+Tên công việc: ${task.title}
+Mô tả: ${task.description || 'Không có mô tả'}
+Người mời: ${tenNguoiMoi}
+Quyền của bạn: ${quyen}
+Hạn hoàn thành: ${ngayHetHan}
+
+Vui lòng đăng nhập ứng dụng Task Manager
+để xem công việc được chia sẻ.
+
+Trân trọng,
+Task Manager
+`;
+
+    return (await guiEmail(
+      user.email,
+      tieuDe,
+      noiDung
+    )) === true;
+  } catch (error) {
+    console.error(
+      'Lỗi gửi email mời chia sẻ:',
+      error.message
+    );
+    return false;
+  }
+}
+
+// ========================================
+// 4. TẠO THÔNG BÁO MONGODB - D.7
 // ========================================
 async function taoThongBao({
   recipient,
@@ -153,7 +217,7 @@ function layTenNguoiDung(user) {
 }
 
 // ========================================
-// 4. TÌM NGƯỜI DÙNG THEO EMAIL
+// 5. TÌM NGƯỜI DÙNG THEO EMAIL
 // ========================================
 router.get('/users', xacThuc, async (req, res) => {
   try {
@@ -186,7 +250,7 @@ router.get('/users', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 5. TẠO CÔNG VIỆC
+// 6. TẠO CÔNG VIỆC
 // ========================================
 router.post('/', xacThuc, async (req, res) => {
   try {
@@ -244,7 +308,10 @@ router.post('/', xacThuc, async (req, res) => {
       task,
     });
   } catch (error) {
-    console.error('Lỗi tạo công việc:', error.message);
+    console.error(
+      'Lỗi tạo công việc:',
+      error.message
+    );
 
     return res.status(500).json({
       message: 'Không thể tạo công việc',
@@ -253,7 +320,7 @@ router.post('/', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 6. LẤY DANH SÁCH CÔNG VIỆC
+// 7. LẤY DANH SÁCH CÔNG VIỆC
 // ========================================
 router.get('/', xacThuc, async (req, res) => {
   try {
@@ -289,7 +356,7 @@ router.get('/', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 7. GIAO CÔNG VIỆC CHO MỘT NGƯỜI
+// 8. GIAO CÔNG VIỆC CHO MỘT NGƯỜI
 // D.1: GỬI EMAIL
 // D.7: TẠO THÔNG BÁO
 // ========================================
@@ -391,7 +458,7 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 8. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI
+// 9. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI
 // ========================================
 router.put(
   '/:id/assign-many',
@@ -581,7 +648,9 @@ router.put(
 );
 
 // ========================================
-// 9. CHIA SẺ CÔNG VIỆC
+// 10. CHIA SẺ CÔNG VIỆC
+// D.2: GỬI EMAIL MỜI XEM / THAM GIA
+// D.7: TẠO THÔNG BÁO TRONG ỨNG DỤNG
 // ========================================
 router.post('/:id/share', xacThuc, async (req, res) => {
   try {
@@ -639,6 +708,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
       });
     }
 
+    // Lưu quyền chia sẻ vào MongoDB
     task.sharedWith.push(user._id);
 
     task.sharePermissions.push({
@@ -652,6 +722,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
       req.userId
     );
 
+    // D.7: Thông báo trong ứng dụng
     await taoThongBao({
       recipient: user._id,
       sender: req.userId,
@@ -662,6 +733,15 @@ router.post('/:id/share', xacThuc, async (req, res) => {
         `công việc "${task.title}" với bạn.`,
       type: 'task_shared',
     });
+
+    // D.2: Gửi email mời chia sẻ
+    // Nếu email thất bại, dữ liệu chia sẻ vẫn được lưu
+    const daGuiEmailMoi = await guiEmailMoiChiaSe(
+      task,
+      user,
+      nguoiChiaSe,
+      role
+    );
 
     await task.populate([
       {
@@ -688,6 +768,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
 
     return res.json({
       message: 'Chia sẻ công việc thành công',
+      emailSent: daGuiEmailMoi,
       task,
       sharedUser: {
         _id: user._id,
@@ -709,7 +790,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 10. THAY ĐỔI QUYỀN CHIA SẺ
+// 11. THAY ĐỔI QUYỀN CHIA SẺ
 // ========================================
 router.put(
   '/:id/share/:userId',
@@ -810,7 +891,7 @@ router.put(
 );
 
 // ========================================
-// 11. THU HỒI QUYỀN CHIA SẺ
+// 12. THU HỒI QUYỀN CHIA SẺ
 // ========================================
 router.delete(
   '/:id/share/:userId',
@@ -898,7 +979,7 @@ router.delete(
 );
 
 // ========================================
-// 12. CHỈNH SỬA CÔNG VIỆC
+// 13. CHỈNH SỬA CÔNG VIỆC
 // ========================================
 router.put('/:id', xacThuc, async (req, res) => {
   try {
@@ -1023,7 +1104,7 @@ router.put('/:id', xacThuc, async (req, res) => {
 });
 
 // ========================================
-// 13. XÓA CÔNG VIỆC
+// 14. XÓA CÔNG VIỆC
 // ========================================
 router.delete('/:id', xacThuc, async (req, res) => {
   try {
