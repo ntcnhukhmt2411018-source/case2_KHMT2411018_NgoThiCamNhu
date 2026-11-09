@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const EmailLog = require('../models/EmailLog');
 const { guiEmail } = require('../services/emailService');
 
 const router = express.Router();
@@ -18,18 +19,22 @@ function xacThuc(req, res, next) {
 
   if (!authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
-      message: 'Vui lòng đăng nhập',
+      message: 'Vui lòng đăng nhập'
     });
   }
 
   try {
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
     const userId = decoded.id || decoded.userId;
 
     if (!mongoose.isValidObjectId(userId)) {
       return res.status(401).json({
-        message: 'Token không hợp lệ',
+        message: 'Token không hợp lệ'
       });
     }
 
@@ -37,7 +42,7 @@ function xacThuc(req, res, next) {
     next();
   } catch (error) {
     return res.status(401).json({
-      message: 'Token không hợp lệ hoặc đã hết hạn',
+      message: 'Token không hợp lệ hoặc đã hết hạn'
     });
   }
 }
@@ -58,7 +63,7 @@ function dinhDangNgayD3(ngay) {
   if (!ngay) return 'Chưa xác định';
 
   return new Date(ngay).toLocaleDateString('vi-VN', {
-    timeZone: 'Asia/Ho_Chi_Minh',
+    timeZone: 'Asia/Ho_Chi_Minh'
   });
 }
 
@@ -67,20 +72,85 @@ function layDanhSachNguoiLienQuan(task, nguoiThucHien) {
     task.createdBy,
     task.assignedTo,
     ...(task.assignedUsers || []),
-    ...(task.sharedWith || []),
+    ...(task.sharedWith || [])
   ];
 
   return [
     ...new Set(
       danhSachId
         .filter(Boolean)
-        .map((id) => String(id))
-    ),
-  ].filter((id) => id !== String(nguoiThucHien));
+        .map(id => String(id))
+    )
+  ].filter(id => id !== String(nguoiThucHien));
 }
 
 // ========================================
-// 3. D.1 - EMAIL KHI GIAO CÔNG VIỆC
+// 3. D.6 - GỬI EMAIL VÀ LƯU LỊCH SỬ
+// ========================================
+async function guiEmailVaLuuLichSu(
+  task,
+  user,
+  type,
+  tieuDe,
+  noiDung
+) {
+  if (!user?.email) return false;
+
+  let thanhCong = false;
+  let thongBaoLoi = '';
+
+  try {
+    thanhCong =
+      (await guiEmail(
+        user.email,
+        tieuDe,
+        noiDung
+      )) === true;
+
+    if (!thanhCong) {
+      thongBaoLoi = 'Gửi email thất bại';
+    }
+  } catch (error) {
+    thongBaoLoi = error.message;
+
+    console.error(
+      'D.6 - Lỗi gửi email:',
+      error.message
+    );
+  }
+
+  try {
+    await EmailLog.create({
+      task: task._id,
+      recipient: user._id,
+      email: user.email,
+      type: type,
+      dueDate: task.dueDate,
+      subject: tieuDe,
+      content: noiDung,
+      status: thanhCong ? 'success' : 'failed',
+      sentAt: thanhCong ? new Date() : null,
+      errorMessage: thongBaoLoi
+    });
+
+    console.log(
+      'D.6 - Đã lưu lịch sử:',
+      type,
+      user.email,
+      thanhCong ? 'success' : 'failed'
+    );
+  } catch (error) {
+    console.error(
+      'D.6 - Lỗi lưu lịch sử:',
+      error.message
+    );
+  }
+
+  return thanhCong;
+}
+
+// ========================================
+// 4. D.1 - EMAIL KHI GIAO CÔNG VIỆC
 // ========================================
 async function guiEmailGiaoViec(task, user, nguoiGiao) {
   try {
@@ -109,21 +179,31 @@ Trân trọng,
 Task Manager
 `;
 
-    return (await guiEmail(
-      user.email,
+    return await guiEmailVaLuuLichSu(
+      task,
+      user,
+      'task_assigned',
       tieuDe,
       noiDung
-    )) === true;
+    );
   } catch (error) {
-    console.error('Lỗi gửi email giao việc:', error.message);
+    console.error(
+      'Lỗi gửi email giao việc:',
+      error.message
+    );
     return false;
   }
 }
 
 // ========================================
-// 4. D.2 - EMAIL MỜI CHIA SẺ CÔNG VIỆC
+// 5. D.2 - EMAIL MỜI CHIA SẺ CÔNG VIỆC
 // ========================================
-async function guiEmailMoiChiaSe(task, user, nguoiMoi, role) {
+async function guiEmailMoiChiaSe(
+  task,
+  user,
+  nguoiMoi,
+  role
+) {
   try {
     if (!user?.email) return false;
 
@@ -155,19 +235,24 @@ Trân trọng,
 Task Manager
 `;
 
-    return (await guiEmail(
-      user.email,
+    return await guiEmailVaLuuLichSu(
+      task,
+      user,
+      'task_shared',
       tieuDe,
       noiDung
-    )) === true;
+    );
   } catch (error) {
-    console.error('Lỗi gửi email mời chia sẻ:', error.message);
+    console.error(
+      'Lỗi gửi email mời chia sẻ:',
+      error.message
+    );
     return false;
   }
 }
 
 // ========================================
-// 5. D.3 - EMAIL KHI THÔNG TIN THAY ĐỔI
+// 6. D.3 - EMAIL KHI THÔNG TIN THAY ĐỔI
 // ========================================
 async function guiEmailThayDoiCongViec(
   task,
@@ -176,7 +261,10 @@ async function guiEmailThayDoiCongViec(
   danhSachThayDoi
 ) {
   try {
-    if (!user?.email || danhSachThayDoi.length === 0) {
+    if (
+      !user?.email ||
+      danhSachThayDoi.length === 0
+    ) {
       return false;
     }
 
@@ -200,11 +288,13 @@ Trân trọng,
 Task Manager
 `;
 
-    return (await guiEmail(
-      user.email,
+    return await guiEmailVaLuuLichSu(
+      task,
+      user,
+      'task_updated',
       tieuDe,
       noiDung
-    )) === true;
+    );
   } catch (error) {
     console.error(
       'Lỗi gửi email cập nhật công việc:',
@@ -215,7 +305,7 @@ Task Manager
 }
 
 // ========================================
-// 6. D.4 - EMAIL KHI CÔNG VIỆC HOÀN THÀNH
+// 7. D.4 - EMAIL KHI CÔNG VIỆC HOÀN THÀNH
 // ========================================
 async function guiEmailHoanThanhCongViec(
   task,
@@ -225,15 +315,11 @@ async function guiEmailHoanThanhCongViec(
   try {
     if (!user?.email) return false;
 
-    const tenNguoiNhan = layTenNguoiDung(user);
-    const tenNguoiHoanThanh =
-      layTenNguoiDung(nguoiHoanThanh);
-
     const tieuDe =
       `Task Manager - Công việc đã hoàn thành: ${task.title}`;
 
     const noiDung = `
-Xin chào ${tenNguoiNhan}!
+Xin chào ${layTenNguoiDung(user)}!
 
 Công việc "${task.title}" đã được đánh dấu
 ĐÃ HOÀN THÀNH trong hệ thống Task Manager.
@@ -242,7 +328,7 @@ THÔNG TIN CÔNG VIỆC
 
 Tên công việc: ${task.title}
 Mô tả: ${task.description || 'Không có mô tả'}
-Người cập nhật: ${tenNguoiHoanThanh}
+Người cập nhật: ${layTenNguoiDung(nguoiHoanThanh)}
 Mức độ ưu tiên: ${task.priority || 'Trung bình'}
 Hạn hoàn thành: ${dinhDangNgayD3(task.dueDate)}
 Trạng thái: Đã hoàn thành
@@ -254,23 +340,25 @@ Trân trọng,
 Task Manager
 `;
 
-    const ketQua = await guiEmail(
-      user.email,
+    const ketQua = await guiEmailVaLuuLichSu(
+      task,
+      user,
+      'task_completed',
       tieuDe,
       noiDung
     );
 
-    if (ketQua === true) {
+    if (ketQua) {
       console.log(
         `D.4 - Đã gửi email hoàn thành tới ${user.email}`
       );
-      return true;
+    } else {
+      console.log(
+        `D.4 - Gửi email hoàn thành thất bại: ${user.email}`
+      );
     }
 
-    console.log(
-      `D.4 - Gửi email hoàn thành thất bại: ${user.email}`
-    );
-    return false;
+    return ketQua;
   } catch (error) {
     console.error(
       'D.4 - Lỗi gửi email hoàn thành:',
@@ -281,7 +369,7 @@ Task Manager
 }
 
 // ========================================
-// 7. D.7 - TẠO THÔNG BÁO MONGODB
+// 8. D.7 - TẠO THÔNG BÁO MONGODB
 // ========================================
 async function taoThongBao({
   recipient,
@@ -289,7 +377,7 @@ async function taoThongBao({
   task,
   title,
   message,
-  type,
+  type
 }) {
   try {
     if (String(recipient) === String(sender)) {
@@ -303,19 +391,22 @@ async function taoThongBao({
       title,
       message,
       type,
-      isRead: false,
+      isRead: false
     });
 
     console.log('Đã tạo thông báo:', title);
     return true;
   } catch (error) {
-    console.error('Lỗi tạo thông báo:', error.message);
+    console.error(
+      'Lỗi tạo thông báo:',
+      error.message
+    );
     return false;
   }
 }
 
 // ========================================
-// 8. TÌM NGƯỜI DÙNG THEO EMAIL
+// 9. TÌM NGƯỜI DÙNG THEO EMAIL
 // ========================================
 router.get('/users', xacThuc, async (req, res) => {
   try {
@@ -325,30 +416,30 @@ router.get('/users', xacThuc, async (req, res) => {
 
     if (!email) {
       return res.status(400).json({
-        message: 'Vui lòng nhập email người nhận',
+        message: 'Vui lòng nhập email người nhận'
       });
     }
 
     const user = await User.findOne({
-      email,
+      email
     }).select('_id fullName name email');
 
     if (!user) {
       return res.status(404).json({
-        message: 'Không tìm thấy tài khoản',
+        message: 'Không tìm thấy tài khoản'
       });
     }
 
     return res.json({ user });
   } catch (error) {
     return res.status(500).json({
-      message: 'Không thể tìm người dùng',
+      message: 'Không thể tìm người dùng'
     });
   }
 });
 
 // ========================================
-// 9. TẠO CÔNG VIỆC
+// 10. TẠO CÔNG VIỆC
 // ========================================
 router.post('/', xacThuc, async (req, res) => {
   try {
@@ -357,18 +448,21 @@ router.post('/', xacThuc, async (req, res) => {
       description,
       priority,
       startDate,
-      dueDate,
+      dueDate
     } = req.body;
 
-    if (typeof title !== 'string' || !title.trim()) {
+    if (
+      typeof title !== 'string' ||
+      !title.trim()
+    ) {
       return res.status(400).json({
-        message: 'Vui lòng nhập tên công việc',
+        message: 'Vui lòng nhập tên công việc'
       });
     }
 
     if (!startDate || !dueDate) {
       return res.status(400).json({
-        message: 'Vui lòng chọn đầy đủ ngày',
+        message: 'Vui lòng chọn đầy đủ ngày'
       });
     }
 
@@ -380,13 +474,13 @@ router.post('/', xacThuc, async (req, res) => {
       Number.isNaN(due.getTime())
     ) {
       return res.status(400).json({
-        message: 'Ngày không hợp lệ',
+        message: 'Ngày không hợp lệ'
       });
     }
 
     if (due < start) {
       return res.status(400).json({
-        message: 'Hạn hoàn thành phải sau ngày bắt đầu',
+        message: 'Hạn hoàn thành phải sau ngày bắt đầu'
       });
     }
 
@@ -398,24 +492,27 @@ router.post('/', xacThuc, async (req, res) => {
       dueDate: due,
       createdBy: req.userId,
       assignedTo: req.userId,
-      assignedUsers: [req.userId],
+      assignedUsers: [req.userId]
     });
 
     return res.status(201).json({
       message: 'Tạo công việc thành công',
-      task,
+      task
     });
   } catch (error) {
-    console.error('Lỗi tạo công việc:', error.message);
+    console.error(
+      'Lỗi tạo công việc:',
+      error.message
+    );
 
     return res.status(500).json({
-      message: 'Không thể tạo công việc',
+      message: 'Không thể tạo công việc'
     });
   }
 });
 
 // ========================================
-// 10. LẤY DANH SÁCH CÔNG VIỆC
+// 11. LẤY DANH SÁCH CÔNG VIỆC
 // ========================================
 router.get('/', xacThuc, async (req, res) => {
   try {
@@ -424,8 +521,8 @@ router.get('/', xacThuc, async (req, res) => {
         { createdBy: req.userId },
         { assignedTo: req.userId },
         { assignedUsers: req.userId },
-        { sharedWith: req.userId },
-      ],
+        { sharedWith: req.userId }
+      ]
     })
       .populate('createdBy', 'fullName name email')
       .populate('assignedTo', 'fullName name email')
@@ -439,17 +536,20 @@ router.get('/', xacThuc, async (req, res) => {
 
     return res.json({ tasks });
   } catch (error) {
-    console.error('Lỗi lấy công việc:', error.message);
+    console.error(
+      'Lỗi lấy công việc:',
+      error.message
+    );
 
     return res.status(500).json({
-      message: 'Không thể lấy danh sách công việc',
+      message: 'Không thể lấy danh sách công việc'
     });
   }
 });
 
 // ========================================
-// 11. GIAO CÔNG VIỆC CHO MỘT NGƯỜI
-// D.1 + D.7
+// 12. GIAO CÔNG VIỆC CHO MỘT NGƯỜI
+// D.1 + D.6 + D.7
 // ========================================
 router.put('/:id/assign', xacThuc, async (req, res) => {
   try {
@@ -461,19 +561,19 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
       !mongoose.isValidObjectId(assignedTo)
     ) {
       return res.status(400).json({
-        message: 'ID không hợp lệ',
+        message: 'ID không hợp lệ'
       });
     }
 
     const task = await Task.findOne({
       _id: taskId,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     if (!task) {
       return res.status(404).json({
         message:
-          'Không tìm thấy công việc hoặc không có quyền giao',
+          'Không tìm thấy công việc hoặc không có quyền giao'
       });
     }
 
@@ -481,12 +581,12 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
 
     if (!user) {
       return res.status(404).json({
-        message: 'Tài khoản người nhận không tồn tại',
+        message: 'Tài khoản người nhận không tồn tại'
       });
     }
 
     const danhSachCu = (task.assignedUsers || [])
-      .map((id) => String(id));
+      .map(id => String(id));
 
     const daDuocGiao =
       danhSachCu.includes(String(user._id)) ||
@@ -516,7 +616,7 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
         message:
           `${layTenNguoiDung(nguoiGiao)} đã giao cho bạn ` +
           `công việc "${task.title}".`,
-        type: 'task_assigned',
+        type: 'task_assigned'
       });
 
       daGuiEmail = await guiEmailGiaoViec(
@@ -532,21 +632,24 @@ router.put('/:id/assign', xacThuc, async (req, res) => {
       assignee: {
         _id: user._id,
         fullName: user.fullName || user.name || '',
-        email: user.email,
+        email: user.email
       },
-      emailSent: daGuiEmail,
+      emailSent: daGuiEmail
     });
   } catch (error) {
-    console.error('Lỗi giao công việc:', error.message);
+    console.error(
+      'Lỗi giao công việc:',
+      error.message
+    );
 
     return res.status(500).json({
-      message: 'Không thể giao công việc',
+      message: 'Không thể giao công việc'
     });
   }
 });
 
 // ========================================
-// 12. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI
+// 13. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI
 // ========================================
 router.put(
   '/:id/assign-many',
@@ -557,7 +660,7 @@ router.put(
 
       if (!mongoose.isValidObjectId(req.params.id)) {
         return res.status(400).json({
-          message: 'ID công việc không hợp lệ',
+          message: 'ID công việc không hợp lệ'
         });
       }
 
@@ -566,48 +669,48 @@ router.put(
         userIds.length === 0
       ) {
         return res.status(400).json({
-          message: 'Vui lòng chọn ít nhất một người',
+          message: 'Vui lòng chọn ít nhất một người'
         });
       }
 
       if (
-        !userIds.every((id) =>
+        !userIds.every(id =>
           mongoose.isValidObjectId(id)
         )
       ) {
         return res.status(400).json({
-          message: 'Danh sách người nhận không hợp lệ',
+          message: 'Danh sách người nhận không hợp lệ'
         });
       }
 
       const task = await Task.findOne({
         _id: req.params.id,
-        createdBy: req.userId,
+        createdBy: req.userId
       });
 
       if (!task) {
         return res.status(404).json({
           message:
-            'Không tìm thấy công việc hoặc không có quyền giao',
+            'Không tìm thấy công việc hoặc không có quyền giao'
         });
       }
 
       const uniqueIds = [
-        ...new Set(userIds.map((id) => String(id))),
+        ...new Set(userIds.map(id => String(id)))
       ];
 
       const users = await User.find({
-        _id: { $in: uniqueIds },
+        _id: { $in: uniqueIds }
       }).select('_id fullName name email');
 
       if (users.length !== uniqueIds.length) {
         return res.status(404).json({
-          message: 'Có tài khoản người nhận không tồn tại',
+          message: 'Có tài khoản người nhận không tồn tại'
         });
       }
 
       const oldIds = (task.assignedUsers || [])
-        .map((id) => String(id));
+        .map(id => String(id));
 
       if (task.assignedTo) {
         oldIds.push(String(task.assignedTo));
@@ -615,28 +718,27 @@ router.put(
 
       const danhSachCu = new Set(oldIds);
 
-      const nguoiMoi = users.filter(
-        (user) =>
-          !danhSachCu.has(String(user._id)) &&
-          String(user._id) !== String(req.userId)
+      const nguoiMoi = users.filter(user =>
+        !danhSachCu.has(String(user._id)) &&
+        String(user._id) !== String(req.userId)
       );
 
       const allIds = [
-        ...new Set([...oldIds, ...uniqueIds]),
+        ...new Set([...oldIds, ...uniqueIds])
       ];
 
       if (primaryUserId !== undefined) {
         if (!mongoose.isValidObjectId(primaryUserId)) {
           return res.status(400).json({
             message:
-              'ID người phụ trách chính không hợp lệ',
+              'ID người phụ trách chính không hợp lệ'
           });
         }
 
         if (!allIds.includes(String(primaryUserId))) {
           return res.status(400).json({
             message:
-              'Người phụ trách chính phải thuộc danh sách được giao',
+              'Người phụ trách chính phải thuộc danh sách được giao'
           });
         }
 
@@ -647,7 +749,7 @@ router.put(
         if (!primaryUser) {
           return res.status(404).json({
             message:
-              'Người phụ trách chính không tồn tại',
+              'Người phụ trách chính không tồn tại'
           });
         }
 
@@ -666,7 +768,7 @@ router.put(
         );
 
         await Promise.all(
-          nguoiMoi.map((user) =>
+          nguoiMoi.map(user =>
             taoThongBao({
               recipient: user._id,
               sender: req.userId,
@@ -675,13 +777,13 @@ router.put(
               message:
                 `${layTenNguoiDung(nguoiGiao)} đã giao ` +
                 `cho bạn công việc "${task.title}".`,
-              type: 'task_assigned',
+              type: 'task_assigned'
             })
           )
         );
 
         const ketQuaGui = await Promise.all(
-          nguoiMoi.map((user) =>
+          nguoiMoi.map(user =>
             guiEmailGiaoViec(
               task,
               user,
@@ -691,7 +793,7 @@ router.put(
         );
 
         soEmailThanhCong = ketQuaGui.filter(
-          (ketQua) => ketQua === true
+          ketQua => ketQua === true
         ).length;
 
         soEmailThatBai =
@@ -701,16 +803,16 @@ router.put(
       await task.populate([
         {
           path: 'assignedTo',
-          select: 'fullName name email',
+          select: 'fullName name email'
         },
         {
           path: 'assignedUsers',
-          select: 'fullName name email',
+          select: 'fullName name email'
         },
         {
           path: 'sharedWith',
-          select: 'fullName name email',
-        },
+          select: 'fullName name email'
+        }
       ]);
 
       return res.json({
@@ -719,7 +821,7 @@ router.put(
         task,
         assignedUsers: task.assignedUsers,
         emailSuccess: soEmailThanhCong,
-        emailFailed: soEmailThatBai,
+        emailFailed: soEmailThatBai
       });
     } catch (error) {
       console.error(
@@ -729,15 +831,15 @@ router.put(
 
       return res.status(500).json({
         message:
-          'Không thể giao công việc cho nhiều người',
+          'Không thể giao công việc cho nhiều người'
       });
     }
   }
 );
 
 // ========================================
-// 13. CHIA SẺ CÔNG VIỆC
-// D.2 + D.7
+// 14. CHIA SẺ CÔNG VIỆC
+// D.2 + D.6 + D.7
 // ========================================
 router.post('/:id/share', xacThuc, async (req, res) => {
   try {
@@ -748,31 +850,31 @@ router.post('/:id/share', xacThuc, async (req, res) => {
       !mongoose.isValidObjectId(userId)
     ) {
       return res.status(400).json({
-        message: 'ID không hợp lệ',
+        message: 'ID không hợp lệ'
       });
     }
 
     if (!['viewer', 'editor'].includes(role)) {
       return res.status(400).json({
-        message: 'Quyền chia sẻ không hợp lệ',
+        message: 'Quyền chia sẻ không hợp lệ'
       });
     }
 
     const task = await Task.findOne({
       _id: req.params.id,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     if (!task) {
       return res.status(404).json({
         message:
-          'Không tìm thấy công việc hoặc không có quyền chia sẻ',
+          'Không tìm thấy công việc hoặc không có quyền chia sẻ'
       });
     }
 
     if (String(userId) === String(req.userId)) {
       return res.status(400).json({
-        message: 'Không thể chia sẻ cho chính mình',
+        message: 'Không thể chia sẻ cho chính mình'
       });
     }
 
@@ -780,18 +882,18 @@ router.post('/:id/share', xacThuc, async (req, res) => {
 
     if (!user) {
       return res.status(404).json({
-        message: 'Không tìm thấy tài khoản người nhận',
+        message: 'Không tìm thấy tài khoản người nhận'
       });
     }
 
     const daChiaSe = (task.sharedWith || []).some(
-      (id) => String(id) === String(userId)
+      id => String(id) === String(userId)
     );
 
     if (daChiaSe) {
       return res.status(400).json({
         message:
-          'Công việc đã được chia sẻ cho người này',
+          'Công việc đã được chia sẻ cho người này'
       });
     }
 
@@ -799,7 +901,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
 
     task.sharePermissions.push({
       user: user._id,
-      role,
+      role
     });
 
     await task.save();
@@ -816,7 +918,7 @@ router.post('/:id/share', xacThuc, async (req, res) => {
       message:
         `${layTenNguoiDung(nguoiChiaSe)} đã chia sẻ ` +
         `công việc "${task.title}" với bạn.`,
-      type: 'task_shared',
+      type: 'task_shared'
     });
 
     const daGuiEmailMoi = await guiEmailMoiChiaSe(
@@ -829,24 +931,24 @@ router.post('/:id/share', xacThuc, async (req, res) => {
     await task.populate([
       {
         path: 'createdBy',
-        select: 'fullName name email',
+        select: 'fullName name email'
       },
       {
         path: 'assignedTo',
-        select: 'fullName name email',
+        select: 'fullName name email'
       },
       {
         path: 'assignedUsers',
-        select: 'fullName name email',
+        select: 'fullName name email'
       },
       {
         path: 'sharedWith',
-        select: 'fullName name email',
+        select: 'fullName name email'
       },
       {
         path: 'sharePermissions.user',
-        select: 'fullName name email',
-      },
+        select: 'fullName name email'
+      }
     ]);
 
     return res.json({
@@ -857,20 +959,23 @@ router.post('/:id/share', xacThuc, async (req, res) => {
         _id: user._id,
         fullName: user.fullName || user.name || '',
         email: user.email,
-        role,
-      },
+        role
+      }
     });
   } catch (error) {
-    console.error('Lỗi chia sẻ công việc:', error.message);
+    console.error(
+      'Lỗi chia sẻ công việc:',
+      error.message
+    );
 
     return res.status(500).json({
-      message: 'Không thể chia sẻ công việc',
+      message: 'Không thể chia sẻ công việc'
     });
   }
 });
 
 // ========================================
-// 14. THAY ĐỔI QUYỀN CHIA SẺ
+// 15. THAY ĐỔI QUYỀN CHIA SẺ
 // ========================================
 router.put(
   '/:id/share/:userId',
@@ -885,43 +990,43 @@ router.put(
         !mongoose.isValidObjectId(userId)
       ) {
         return res.status(400).json({
-          message: 'ID không hợp lệ',
+          message: 'ID không hợp lệ'
         });
       }
 
       if (!['viewer', 'editor'].includes(role)) {
         return res.status(400).json({
-          message: 'Quyền chia sẻ không hợp lệ',
+          message: 'Quyền chia sẻ không hợp lệ'
         });
       }
 
       const task = await Task.findOne({
         _id: id,
-        createdBy: req.userId,
+        createdBy: req.userId
       });
 
       if (!task) {
         return res.status(404).json({
           message:
-            'Không tìm thấy công việc hoặc không có quyền thay đổi',
+            'Không tìm thấy công việc hoặc không có quyền thay đổi'
         });
       }
 
       const daChiaSe = (task.sharedWith || []).some(
-        (user) => String(user) === String(userId)
+        user => String(user) === String(userId)
       );
 
       if (!daChiaSe) {
         return res.status(404).json({
           message:
-            'Người này chưa được chia sẻ công việc',
+            'Người này chưa được chia sẻ công việc'
         });
       }
 
       const permission = (
         task.sharePermissions || []
       ).find(
-        (item) => String(item.user) === String(userId)
+        item => String(item.user) === String(userId)
       );
 
       if (permission) {
@@ -929,7 +1034,7 @@ router.put(
       } else {
         task.sharePermissions.push({
           user: userId,
-          role,
+          role
         });
       }
 
@@ -938,40 +1043,40 @@ router.put(
       await task.populate([
         {
           path: 'createdBy',
-          select: 'fullName name email',
+          select: 'fullName name email'
         },
         {
           path: 'assignedTo',
-          select: 'fullName name email',
+          select: 'fullName name email'
         },
         {
           path: 'assignedUsers',
-          select: 'fullName name email',
+          select: 'fullName name email'
         },
         {
           path: 'sharedWith',
-          select: 'fullName name email',
+          select: 'fullName name email'
         },
         {
           path: 'sharePermissions.user',
-          select: 'fullName name email',
-        },
+          select: 'fullName name email'
+        }
       ]);
 
       return res.json({
         message: 'Thay đổi quyền thành công',
-        task,
+        task
       });
     } catch (error) {
       return res.status(500).json({
-        message: 'Không thể thay đổi quyền chia sẻ',
+        message: 'Không thể thay đổi quyền chia sẻ'
       });
     }
   }
 );
 
 // ========================================
-// 15. THU HỒI QUYỀN CHIA SẺ
+// 16. THU HỒI QUYỀN CHIA SẺ
 // ========================================
 router.delete(
   '/:id/share/:userId',
@@ -985,40 +1090,40 @@ router.delete(
         !mongoose.isValidObjectId(userId)
       ) {
         return res.status(400).json({
-          message: 'ID không hợp lệ',
+          message: 'ID không hợp lệ'
         });
       }
 
       const task = await Task.findOne({
         _id: id,
-        createdBy: req.userId,
+        createdBy: req.userId
       });
 
       if (!task) {
         return res.status(404).json({
           message:
-            'Không tìm thấy công việc hoặc không có quyền thu hồi',
+            'Không tìm thấy công việc hoặc không có quyền thu hồi'
         });
       }
 
       const daChiaSe = (task.sharedWith || []).some(
-        (user) => String(user) === String(userId)
+        user => String(user) === String(userId)
       );
 
       if (!daChiaSe) {
         return res.status(404).json({
           message:
-            'Người này chưa được chia sẻ công việc',
+            'Người này chưa được chia sẻ công việc'
         });
       }
 
       task.sharedWith = task.sharedWith.filter(
-        (user) => String(user) !== String(userId)
+        user => String(user) !== String(userId)
       );
 
       task.sharePermissions =
         task.sharePermissions.filter(
-          (item) => String(item.user) !== String(userId)
+          item => String(item.user) !== String(userId)
         );
 
       await task.save();
@@ -1026,48 +1131,47 @@ router.delete(
       await task.populate([
         {
           path: 'createdBy',
-          select: 'fullName name email',
+          select: 'fullName name email'
         },
         {
           path: 'assignedTo',
-          select: 'fullName name email',
+          select: 'fullName name email'
         },
         {
           path: 'assignedUsers',
-          select: 'fullName name email',
+          select: 'fullName name email'
         },
         {
           path: 'sharedWith',
-          select: 'fullName name email',
+          select: 'fullName name email'
         },
         {
           path: 'sharePermissions.user',
-          select: 'fullName name email',
-        },
+          select: 'fullName name email'
+        }
       ]);
 
       return res.json({
         message: 'Thu hồi quyền chia sẻ thành công',
-        task,
+        task
       });
     } catch (error) {
       return res.status(500).json({
-        message: 'Không thể thu hồi quyền chia sẻ',
+        message: 'Không thể thu hồi quyền chia sẻ'
       });
     }
   }
 );
 
 // ========================================
-// 16. CHỈNH SỬA CÔNG VIỆC
-// D.3 - EMAIL KHI THÔNG TIN THAY ĐỔI
-// D.4 - EMAIL KHI HOÀN THÀNH
+// 17. CHỈNH SỬA CÔNG VIỆC
+// D.3 + D.4 + D.6
 // ========================================
 router.put('/:id', xacThuc, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
-        message: 'ID công việc không hợp lệ',
+        message: 'ID công việc không hợp lệ'
       });
     }
 
@@ -1075,7 +1179,7 @@ router.put('/:id', xacThuc, async (req, res) => {
 
     if (!task) {
       return res.status(404).json({
-        message: 'Không tìm thấy công việc',
+        message: 'Không tìm thấy công việc'
       });
     }
 
@@ -1085,20 +1189,20 @@ router.put('/:id', xacThuc, async (req, res) => {
     const quyenChiaSe = (
       task.sharePermissions || []
     ).find(
-      (item) =>
+      item =>
         String(item.user) === String(req.userId)
     );
 
     const laEditor =
       quyenChiaSe?.role === 'editor' &&
       (task.sharedWith || []).some(
-        (id) => String(id) === String(req.userId)
+        id => String(id) === String(req.userId)
       );
 
     if (!laNguoiTao && !laEditor) {
       return res.status(403).json({
         message:
-          'Bạn không có quyền chỉnh sửa công việc này',
+          'Bạn không có quyền chỉnh sửa công việc này'
       });
     }
 
@@ -1108,36 +1212,39 @@ router.put('/:id', xacThuc, async (req, res) => {
       priority,
       status,
       startDate,
-      dueDate,
+      dueDate
     } = req.body;
 
-    if (typeof title !== 'string' || !title.trim()) {
+    if (
+      typeof title !== 'string' ||
+      !title.trim()
+    ) {
       return res.status(400).json({
-        message: 'Vui lòng nhập tên công việc',
+        message: 'Vui lòng nhập tên công việc'
       });
     }
 
     if (!['Thấp', 'Trung bình', 'Cao'].includes(priority)) {
       return res.status(400).json({
-        message: 'Mức ưu tiên không hợp lệ',
+        message: 'Mức ưu tiên không hợp lệ'
       });
     }
 
     const trangThaiHopLe = [
       'Chưa thực hiện',
       'Đang thực hiện',
-      'Đã hoàn thành',
+      'Đã hoàn thành'
     ];
 
     if (!trangThaiHopLe.includes(status)) {
       return res.status(400).json({
-        message: 'Trạng thái không hợp lệ',
+        message: 'Trạng thái không hợp lệ'
       });
     }
 
     if (!startDate || !dueDate) {
       return res.status(400).json({
-        message: 'Vui lòng chọn đầy đủ ngày',
+        message: 'Vui lòng chọn đầy đủ ngày'
       });
     }
 
@@ -1149,29 +1256,25 @@ router.put('/:id', xacThuc, async (req, res) => {
       Number.isNaN(due.getTime())
     ) {
       return res.status(400).json({
-        message: 'Ngày không hợp lệ',
+        message: 'Ngày không hợp lệ'
       });
     }
 
     if (due < start) {
       return res.status(400).json({
         message:
-          'Hạn hoàn thành phải sau ngày bắt đầu',
+          'Hạn hoàn thành phải sau ngày bắt đầu'
       });
     }
 
-    // =====================================
-    // D.4 - KIỂM TRA TRẠNG THÁI TRƯỚC KHI SỬA
-    // =====================================
+    // Kiểm tra D.4
     const trangThaiCu = task.status;
 
     const vuaHoanThanh =
       trangThaiCu !== 'Đã hoàn thành' &&
       status === 'Đã hoàn thành';
 
-    // =====================================
-    // D.3 - SO SÁNH THÔNG TIN CŨ VÀ MỚI
-    // =====================================
+    // So sánh D.3
     const danhSachThayDoi = [];
 
     if (task.title !== title.trim()) {
@@ -1216,9 +1319,7 @@ router.put('/:id', xacThuc, async (req, res) => {
       );
     }
 
-    // =====================================
-    // LƯU THÔNG TIN MỚI
-    // =====================================
+    // Lưu công việc
     task.title = title.trim();
     task.description = description || '';
     task.priority = priority;
@@ -1228,9 +1329,6 @@ router.put('/:id', xacThuc, async (req, res) => {
 
     await task.save();
 
-    // =====================================
-    // D.3 + D.4 - CHUẨN BỊ GỬI EMAIL
-    // =====================================
     let soEmailThanhCong = 0;
     let soEmailThatBai = 0;
 
@@ -1249,19 +1347,17 @@ router.put('/:id', xacThuc, async (req, res) => {
 
         if (uniqueIds.length > 0) {
           const nguoiNhan = await User.find({
-            _id: { $in: uniqueIds },
+            _id: { $in: uniqueIds }
           }).select('fullName name email');
 
           const nguoiSua = await User.findById(
             req.userId
           ).select('fullName name email');
 
-          // =================================
-          // D.3 - EMAIL THAY ĐỔI THÔNG TIN
-          // =================================
+          // D.3 - Email cập nhật
           if (danhSachThayDoi.length > 0) {
             const ketQuaD3 = await Promise.all(
-              nguoiNhan.map((user) =>
+              nguoiNhan.map(user =>
                 guiEmailThayDoiCongViec(
                   task,
                   user,
@@ -1272,23 +1368,21 @@ router.put('/:id', xacThuc, async (req, res) => {
             );
 
             soEmailThanhCong = ketQuaD3.filter(
-              (ketQua) => ketQua === true
+              ketQua => ketQua === true
             ).length;
 
             soEmailThatBai =
               nguoiNhan.length - soEmailThanhCong;
           }
 
-          // =================================
-          // D.4 - EMAIL KHI HOÀN THÀNH
-          // =================================
+          // D.4 - Email hoàn thành
           if (vuaHoanThanh) {
             console.log(
               `D.4 - Công việc hoàn thành: ${task.title}`
             );
 
             const ketQuaD4 = await Promise.all(
-              nguoiNhan.map((user) =>
+              nguoiNhan.map(user =>
                 guiEmailHoanThanhCongViec(
                   task,
                   user,
@@ -1298,7 +1392,7 @@ router.put('/:id', xacThuc, async (req, res) => {
             );
 
             soEmailD4ThanhCong = ketQuaD4.filter(
-              (ketQua) => ketQua === true
+              ketQua => ketQua === true
             ).length;
 
             soEmailD4ThatBai =
@@ -1326,14 +1420,12 @@ router.put('/:id', xacThuc, async (req, res) => {
       task,
       changes: danhSachThayDoi,
 
-      // Kết quả D.3
       emailSuccess: soEmailThanhCong,
       emailFailed: soEmailThatBai,
 
-      // Kết quả D.4
       justCompleted: vuaHoanThanh,
       completionEmailSuccess: soEmailD4ThanhCong,
-      completionEmailFailed: soEmailD4ThatBai,
+      completionEmailFailed: soEmailD4ThatBai
     });
   } catch (error) {
     console.error(
@@ -1342,42 +1434,45 @@ router.put('/:id', xacThuc, async (req, res) => {
     );
 
     return res.status(500).json({
-      message: 'Không thể cập nhật công việc',
+      message: 'Không thể cập nhật công việc'
     });
   }
 });
 
 // ========================================
-// 17. XÓA CÔNG VIỆC
+// 18. XÓA CÔNG VIỆC
 // ========================================
 router.delete('/:id', xacThuc, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
-        message: 'ID công việc không hợp lệ',
+        message: 'ID công việc không hợp lệ'
       });
     }
 
     const task = await Task.findOneAndDelete({
       _id: req.params.id,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     if (!task) {
       return res.status(404).json({
         message:
-          'Không tìm thấy công việc hoặc không có quyền xóa',
+          'Không tìm thấy công việc hoặc không có quyền xóa'
       });
     }
 
     return res.json({
-      message: 'Xóa công việc thành công',
+      message: 'Xóa công việc thành công'
     });
   } catch (error) {
-    console.error('Lỗi xóa công việc:', error.message);
+    console.error(
+      'Lỗi xóa công việc:',
+      error.message
+    );
 
     return res.status(500).json({
-      message: 'Không thể xóa công việc',
+      message: 'Không thể xóa công việc'
     });
   }
 });
