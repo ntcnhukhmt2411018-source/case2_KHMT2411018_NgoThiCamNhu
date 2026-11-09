@@ -5,7 +5,7 @@ import '../profile/profile_screen.dart';
 import '../services/user_service.dart';
 
 import 'login_screen.dart';
-import 'task_list_screen.dart'; // MỚI: Màn hình danh sách công việc
+import 'task_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String token;
@@ -41,16 +41,28 @@ class _HomeScreenState extends State<HomeScreen> {
       final data = await UserService.getProfile(widget.token);
       final user = data['user'] ?? data;
 
+      if (user is! Map) {
+        throw Exception('Du lieu nguoi dung khong hop le');
+      }
+
+      final ten = (user['fullName'] ?? '').toString().trim();
+
+      debugPrint('Lay thong tin ca nhan thanh cong');
+      debugPrint('Ho ten nhan duoc: $ten');
+
       if (!mounted) return;
 
       setState(() {
-        hoTen = (user['fullName'] ?? '').toString();
+        hoTen = ten;
         dangTai = false;
       });
     } catch (e) {
+      debugPrint('LOI LAY HO TEN: $e');
+
       if (!mounted) return;
 
       setState(() {
+        hoTen = '';
         dangTai = false;
       });
     }
@@ -186,7 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   : Text(
                 hoTen.isNotEmpty
                     ? '$hoTen!'
-                    : widget.email,
+                    : 'Không tải được họ tên',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 23,
