@@ -6,6 +6,7 @@ import '../services/user_service.dart';
 
 import 'auth/login_screen.dart';
 import 'tasks/task_list_screen.dart';
+import 'statistics_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String token;
@@ -108,7 +109,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 7. TẠO NÚT CHỨC NĂNG
+  // 7. MỞ TRANG THỐNG KÊ & TIỆN ÍCH - PHẦN E
+  void moThongKe() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StatisticsScreen(
+          token: widget.token,
+        ),
+      ),
+    );
+  }
+
+  // 8. TẠO NÚT CHỨC NĂNG
   Widget nutChucNang({
     required String ten,
     required IconData icon,
@@ -139,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 8. GIAO DIỆN HOME
+  // 9. GIAO DIỆN HOME
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -219,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 35),
 
-              // 9. NÚT DANH SÁCH CÔNG VIỆC - PHẦN B
+              // 10. NÚT DANH SÁCH CÔNG VIỆC - PHẦN B
               nutChucNang(
                 ten: 'Danh sách công việc',
                 icon: Icons.list_alt,
@@ -228,7 +241,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 14),
 
-              // 10. NÚT THÔNG TIN CÁ NHÂN - PHẦN A
+              // 11. NÚT THỐNG KÊ & TIỆN ÍCH - PHẦN E
+              nutChucNang(
+                ten: 'Thống kê & Tiện ích',
+                icon: Icons.bar_chart,
+                onPressed: moThongKe,
+              ),
+
+              const SizedBox(height: 14),
+
+              // 12. NÚT THÔNG TIN CÁ NHÂN - PHẦN A
               nutChucNang(
                 ten: 'Thông tin cá nhân',
                 icon: Icons.person,
@@ -237,7 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 14),
 
-              // 11. NÚT ĐĂNG XUẤT - PHẦN A
+              // 13. NÚT ĐĂNG XUẤT - PHẦN A
               nutChucNang(
                 ten: 'Đăng xuất',
                 icon: Icons.logout,
