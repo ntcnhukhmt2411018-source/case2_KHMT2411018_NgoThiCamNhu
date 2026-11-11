@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import '../profile/profile_screen.dart';
 import '../services/user_service.dart';
 
-import 'login_screen.dart';
-import 'task_list_screen.dart';
+import 'auth/login_screen.dart';
+import 'tasks/task_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String token;
