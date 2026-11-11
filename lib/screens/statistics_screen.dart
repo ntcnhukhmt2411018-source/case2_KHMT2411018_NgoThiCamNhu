@@ -33,6 +33,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   bool dangTaiLichSu = false;
   String? loiLichSu;
 
+  // E.5 - Trạng thái và thông báo
+  bool dangLamMoi = false;
+
   @override
   void initState() {
     super.initState();
@@ -40,7 +43,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   // ==========================================
-  // CÁC HÀM DÙNG CHUNG
+  // HÀM DÙNG CHUNG
   // ==========================================
 
   String? layUserIdTuToken(String token) {
@@ -49,9 +52,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       if (parts.length != 3) return null;
 
       final payload = utf8.decode(
-        base64Url.decode(
-          base64Url.normalize(parts[1]),
-        ),
+        base64Url.decode(base64Url.normalize(parts[1])),
       );
 
       final data = jsonDecode(payload);
@@ -68,8 +69,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     if (giaTri == null) return '';
 
     if (giaTri is Map) {
-      return (giaTri['_id'] ?? giaTri['id'] ?? '')
-          .toString();
+      return (giaTri['_id'] ?? giaTri['id'] ?? '').toString();
     }
 
     return giaTri.toString();
@@ -83,11 +83,77 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  Future<void> taiThongKe() async {
+  // ==========================================
+  // E.5 - THÔNG BÁO KẾT QUẢ THAO TÁC
+  // ==========================================
+
+  void thongBaoThanhCong(String noiDung) {
     if (!mounted) return;
 
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.check_circle_outline,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text(noiDung)),
+            ],
+          ),
+          backgroundColor: Colors.green.shade700,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
+  void thongBaoThatBai(String noiDung) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text(noiDung)),
+            ],
+          ),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+  }
+
+  String layThongBaoLoi(Object e) {
+    return e.toString().replaceFirst('Exception: ', '');
+  }
+
+  // ==========================================
+  // TẢI THỐNG KÊ E.1 - E.3
+  // ==========================================
+
+  Future<void> taiThongKe({
+    bool hienThongBao = false,
+  }) async {
+    if (!mounted || dangLamMoi) return;
+
     setState(() {
-      dangTai = true;
+      if (hienThongBao) {
+        dangLamMoi = true;
+      } else {
+        dangTai = true;
+      }
       thongBaoLoi = null;
     });
 
@@ -115,8 +181,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           .map((cv) => layId(cv['_id']))
           .toSet();
 
-      final idDaChon =
-      ids.contains(congViecDuocChon)
+      final idDaChon = ids.contains(congViecDuocChon)
           ? congViecDuocChon
           : null;
 
@@ -133,18 +198,43 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         }
       });
 
+      bool lichSuThanhCong = true;
+
       if (idDaChon != null) {
-        await taiLichSu(idDaChon);
+        lichSuThanhCong = await taiLichSu(
+          idDaChon,
+          hienThongBao: false,
+        );
+      }
+
+      if (!mounted) return;
+
+      if (hienThongBao && lichSuThanhCong) {
+        thongBaoThanhCong(
+          'Làm mới dữ liệu thành công',
+        );
       }
     } catch (e) {
       if (!mounted) return;
 
+      final loi = layThongBaoLoi(e);
+
       setState(() {
-        thongBaoLoi = e
-            .toString()
-            .replaceFirst('Exception: ', '');
+        thongBaoLoi = loi;
         dangTai = false;
       });
+
+      if (hienThongBao) {
+        thongBaoThatBai(
+          'Không thể làm mới dữ liệu: $loi',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          dangLamMoi = false;
+        });
+      }
     }
   }
 
@@ -822,8 +912,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   // E.4 - LỊCH SỬ HOẠT ĐỘNG CÔNG VIỆC
   // ==========================================
 
-  Future<void> taiLichSu(String taskId) async {
-    if (!mounted) return;
+  Future<bool> taiLichSu(
+      String taskId, {
+        bool hienThongBao = true,
+      }) async {
+    if (!mounted) return false;
 
     setState(() {
       congViecDuocChon = taskId;
@@ -839,27 +932,41 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         taskId,
       );
 
-      if (!mounted ||
-          congViecDuocChon != taskId) {
-        return;
+      if (!mounted || congViecDuocChon != taskId) {
+        return false;
       }
 
       setState(() {
         danhSachLichSu = ketQua;
         dangTaiLichSu = false;
       });
-    } catch (e) {
-      if (!mounted ||
-          congViecDuocChon != taskId) {
-        return;
+
+      if (hienThongBao) {
+        thongBaoThanhCong(
+          'Tải lịch sử hoạt động thành công',
+        );
       }
 
+      return true;
+    } catch (e) {
+      if (!mounted || congViecDuocChon != taskId) {
+        return false;
+      }
+
+      final loi = layThongBaoLoi(e);
+
       setState(() {
-        loiLichSu = e
-            .toString()
-            .replaceFirst('Exception: ', '');
+        loiLichSu = loi;
         dangTaiLichSu = false;
       });
+
+      if (hienThongBao) {
+        thongBaoThatBai(
+          'Không thể tải lịch sử: $loi',
+        );
+      }
+
+      return false;
     }
   }
 
@@ -1112,7 +1219,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                   ),
                 );
               }).toList(),
-              onChanged: (id) {
+              onChanged: dangTaiLichSu
+                  ? null
+                  : (id) {
                 if (id != null) {
                   taiLichSu(id);
                 }
@@ -1138,14 +1247,32 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(
-                  color: mauTim,
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(
+                      color: mauTim,
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      'Đang tải lịch sử hoạt động...',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             )
           else if (loiLichSu != null)
               Column(
                 children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.red,
+                    size: 35,
+                  ),
+                  const SizedBox(height: 8),
                   Text(
                     'Không tải được lịch sử:\n'
                         '$loiLichSu',
@@ -1168,12 +1295,22 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.all(12),
-                    child: Text(
-                      'Chưa có lịch sử hoạt động.',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.history_toggle_off,
+                          color: Colors.grey,
+                          size: 32,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Chưa có lịch sử hoạt động.',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 )
@@ -1210,6 +1347,122 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   // ==========================================
+  // E.5 - GIAO DIỆN TRẠNG THÁI TẢI VÀ LỖI
+  // ==========================================
+
+  Widget giaoDienDangTai() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(
+            color: mauTim,
+          ),
+          SizedBox(height: 15),
+          Text(
+            'Đang tải dữ liệu thống kê...',
+            style: TextStyle(
+              color: Colors.black54,
+              fontSize: 14,
+            ),
+          ),
+          SizedBox(height: 5),
+          Text(
+            'Vui lòng chờ trong giây lát',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget giaoDienLoi() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 55,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Không thể tải dữ liệu',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              thongBaoLoi ?? 'Đã xảy ra lỗi',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.black54,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 15),
+            ElevatedButton.icon(
+              onPressed: () {
+                taiThongKe(hienThongBao: true);
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Thử lại'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: mauTim,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget giaoDienChuaCoDuLieu() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: const Column(
+        children: [
+          Icon(
+            Icons.inbox_outlined,
+            color: Colors.grey,
+            size: 40,
+          ),
+          SizedBox(height: 10),
+          Text(
+            'Chưa có công việc nào',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Hãy tạo công việc để bắt đầu theo dõi.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
   // GIAO DIỆN THỐNG KÊ & TIỆN ÍCH
   // ==========================================
 
@@ -1229,45 +1482,50 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         backgroundColor: mauTim,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            tooltip: 'Làm mới',
-            onPressed: taiThongKe,
-            icon: const Icon(Icons.refresh),
-          ),
+          if (dangLamMoi)
+            const Padding(
+              padding: EdgeInsets.all(14),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: 'Làm mới',
+              onPressed: dangTai
+                  ? null
+                  : () {
+                taiThongKe(
+                  hienThongBao: true,
+                );
+              },
+              icon: const Icon(Icons.refresh),
+            ),
         ],
       ),
       body: dangTai
-          ? const Center(
-        child: CircularProgressIndicator(
-          color: mauTim,
-        ),
-      )
+          ? giaoDienDangTai()
           : thongBaoLoi != null
-          ? Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Không tải được thống kê:\n'
-                    '$thongBaoLoi',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: taiThongKe,
-                child: const Text('Thử lại'),
-              ),
-            ],
-          ),
-        ),
-      )
+          ? giaoDienLoi()
           : RefreshIndicator(
-        onRefresh: taiThongKe,
+        onRefresh: () => taiThongKe(
+          hienThongBao: true,
+        ),
         child: ListView(
+          physics:
+          const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(12),
           children: [
+            if (danhSachCongViec.isEmpty) ...[
+              giaoDienChuaCoDuLieu(),
+              const SizedBox(height: 12),
+            ],
+
             // E.1
             thongKeTienDo(),
 
