@@ -24,7 +24,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
   List<dynamic> danhSachCongViec = [];
   String? userId;
-
   bool dangTai = true;
   String? thongBaoLoi;
 
@@ -34,14 +33,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     taiThongKe();
   }
 
-  // ==========================================
   // LẤY ID NGƯỜI ĐĂNG NHẬP TỪ TOKEN
-  // ==========================================
-
   String? layUserIdTuToken(String token) {
     try {
       final parts = token.split('.');
-
       if (parts.length != 3) return null;
 
       final payload = utf8.decode(
@@ -51,19 +46,16 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       );
 
       final data = jsonDecode(payload);
-
       if (data is! Map) return null;
 
-      final id = data['id'] ?? data['userId'];
-
-      return id?.toString();
+      return (data['id'] ?? data['userId'])?.toString();
     } catch (e) {
-      debugPrint('Lỗi đọc ID từ token: $e');
+      debugPrint('Lỗi đọc token: $e');
       return null;
     }
   }
 
-  // LẤY ID TỪ CHUỖI HOẶC OBJECT MONGODB
+  // LẤY ID TỪ OBJECT HOẶC CHUỖI
   String layId(dynamic giaTri) {
     if (giaTri == null) return '';
 
@@ -75,7 +67,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return giaTri.toString();
   }
 
-  // KIỂM TRA NGƯỜI DÙNG TRONG DANH SÁCH
   bool coTrongDanhSach(dynamic danhSach, String id) {
     if (danhSach is! List) return false;
 
@@ -84,10 +75,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  // ==========================================
-  // LẤY DỮ LIỆU TỪ MONGODB
-  // ==========================================
-
+  // LẤY DỮ LIỆU CÔNG VIỆC
   Future<void> taiThongKe() async {
     if (!mounted) return;
 
@@ -97,24 +85,20 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     });
 
     try {
-      // Lấy danh sách công việc
       final ketQua =
       await TaskService.getTasks(widget.token);
 
-      // Lấy ID tài khoản đăng nhập
       String? id = layUserIdTuToken(widget.token);
 
-      // Nếu token không có ID thì lấy từ profile
       if (id == null || id.isEmpty) {
         try {
           final profile =
           await UserService.getProfile(widget.token);
 
           final user = profile['user'] ?? profile;
-
           id = layId(user);
         } catch (e) {
-          debugPrint('Không lấy được ID từ profile: $e');
+          debugPrint('Không lấy được ID: $e');
         }
       }
 
@@ -138,10 +122,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   // ==========================================
-  // THEO DÕI TIẾN ĐỘ CÔNG VIỆC
+  // E.1 - THEO DÕI TIẾN ĐỘ CÔNG VIỆC
   // ==========================================
 
-  // MỘT Ô THỐNG KÊ NHỎ
   Widget oThongKe({
     required String tieuDe,
     required int soLuong,
@@ -170,9 +153,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 5),
-
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
@@ -190,7 +171,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  // GIAO DIỆN THEO DÕI TIẾN ĐỘ
   Widget thongKeTienDo() {
     final tong = danhSachCongViec.length;
 
@@ -223,7 +203,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           ),
         ],
       ),
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -234,10 +213,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 12),
 
-          // 4 Ô THỐNG KÊ CÙNG MỘT HÀNG
           Row(
             children: [
               oThongKe(
@@ -246,27 +223,21 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 mauChu: const Color(0xFF5142D3),
                 mauNenO: const Color(0xFFF0EDFF),
               ),
-
               const SizedBox(width: 5),
-
               oThongKe(
                 tieuDe: 'Chưa làm',
                 soLuong: chuaLam,
                 mauChu: Colors.grey,
                 mauNenO: const Color(0xFFF5F5F5),
               ),
-
               const SizedBox(width: 5),
-
               oThongKe(
                 tieuDe: 'Đang làm',
                 soLuong: dangLam,
                 mauChu: Colors.orange,
                 mauNenO: const Color(0xFFFFF4E6),
               ),
-
               const SizedBox(width: 5),
-
               oThongKe(
                 tieuDe: 'Hoàn thành',
                 soLuong: hoanThanh,
@@ -278,7 +249,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
           const SizedBox(height: 15),
 
-          // TỶ LỆ HOÀN THÀNH
           Row(
             mainAxisAlignment:
             MainAxisAlignment.spaceBetween,
@@ -290,7 +260,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-
               Text(
                 '${(tiLe * 100).round()}%',
                 style: const TextStyle(
@@ -323,10 +292,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   // ==========================================
-  // THỐNG KÊ CÔNG VIỆC CỦA TÔI
+  // E.2 - THỐNG KÊ CÔNG VIỆC CỦA TÔI
   // ==========================================
 
-  // KIỂM TRA CÔNG VIỆC DO TÔI GIAO CHO NGƯỜI KHÁC
   bool laCongViecDaGiao(dynamic congViec) {
     final id = userId;
 
@@ -334,10 +302,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
     final nguoiTao = layId(congViec['createdBy']);
 
-    // Chỉ tính công việc do tôi tạo
     if (nguoiTao != id) return false;
 
-    // Giao cho một người khác
     final nguoiPhuTrach =
     layId(congViec['assignedTo']);
 
@@ -346,14 +312,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       return true;
     }
 
-    // Giao cho nhiều người
-    final danhSachNguoiDuocGiao =
-    congViec['assignedUsers'];
+    final danhSach = congViec['assignedUsers'];
 
-    if (danhSachNguoiDuocGiao is List) {
-      return danhSachNguoiDuocGiao.any((nguoi) {
+    if (danhSach is List) {
+      return danhSach.any((nguoi) {
         final nguoiId = layId(nguoi);
-
         return nguoiId.isNotEmpty && nguoiId != id;
       });
     }
@@ -361,25 +324,21 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return false;
   }
 
-  // KIỂM TRA CÔNG VIỆC TÔI ĐANG PHỤ TRÁCH
   bool laCongViecDangPhuTrach(dynamic congViec) {
     final id = userId;
 
     if (id == null || id.isEmpty) return false;
 
-    // Tôi là người phụ trách chính
     if (layId(congViec['assignedTo']) == id) {
       return true;
     }
 
-    // Tôi nằm trong danh sách được giao
     return coTrongDanhSach(
       congViec['assignedUsers'],
       id,
     );
   }
 
-  // MỘT Ô THỐNG KÊ CÔNG VIỆC
   Widget oThongKeCongViec({
     required String tieuDe,
     required int soLuong,
@@ -389,9 +348,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }) {
     return Expanded(
       child: Container(
-        constraints: const BoxConstraints(
-          minHeight: 130,
-        ),
+        constraints:
+        const BoxConstraints(minHeight: 130),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: mauNenO,
@@ -400,14 +358,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              color: mauTim,
-              size: 22,
-            ),
-
+            Icon(icon, color: mauTim, size: 22),
             const SizedBox(height: 9),
-
             Text(
               tieuDe,
               style: const TextStyle(
@@ -415,9 +367,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-
             const SizedBox(height: 8),
-
             Text(
               '$soLuong',
               style: const TextStyle(
@@ -426,9 +376,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 color: mauTim,
               ),
             ),
-
             const SizedBox(height: 6),
-
             Text(
               moTa,
               style: const TextStyle(
@@ -442,7 +390,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  // GIAO DIỆN THỐNG KÊ CÔNG VIỆC CỦA TÔI
   Widget thongKeCongViecCuaToi() {
     final daGiao = danhSachCongViec
         .where(laCongViecDaGiao)
@@ -465,7 +412,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           ),
         ],
       ),
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -476,7 +422,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 12),
 
           if (userId == null || userId!.isEmpty)
@@ -490,27 +435,387 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             )
           else
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
               children: [
                 oThongKeCongViec(
                   tieuDe: 'Đã giao',
                   soLuong: daGiao,
-                  moTa: 'Công việc giao cho người khác',
+                  moTa:
+                  'Công việc giao cho người khác',
                   icon: Icons.send_outlined,
-                  mauNenO: const Color(0xFFF2ECFF),
+                  mauNenO:
+                  const Color(0xFFF2ECFF),
                 ),
-
                 const SizedBox(width: 10),
-
                 oThongKeCongViec(
                   tieuDe: 'Đang phụ trách',
                   soLuong: dangPhuTrach,
-                  moTa: 'Công việc được giao cho tôi',
-                  icon: Icons.assignment_turned_in_outlined,
-                  mauNenO: const Color(0xFFEFEDFF),
+                  moTa:
+                  'Công việc được giao cho tôi',
+                  icon: Icons
+                      .assignment_turned_in_outlined,
+                  mauNenO:
+                  const Color(0xFFEFEDFF),
                 ),
               ],
             ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // E.3 - SẮP ĐẾN HẠN VÀ QUÁ HẠN
+  // ==========================================
+
+  // LẤY NGÀY HẾT HẠN
+  DateTime? layHanCongViec(dynamic congViec) {
+    if (congViec is! Map) return null;
+
+    final giaTri =
+        congViec['dueDate'] ?? congViec['deadline'];
+
+    if (giaTri == null) return null;
+
+    if (giaTri is DateTime) {
+      return giaTri.toLocal();
+    }
+
+    return DateTime.tryParse(
+      giaTri.toString(),
+    )?.toLocal();
+  }
+
+  // CHỈ LẤY NGÀY, KHÔNG LẤY GIỜ
+  DateTime chiLayNgay(DateTime ngay) {
+    return DateTime(
+      ngay.year,
+      ngay.month,
+      ngay.day,
+    );
+  }
+
+  // KIỂM TRA ĐÃ HOÀN THÀNH
+  bool daHoanThanh(dynamic congViec) {
+    return congViec is Map &&
+        congViec['status'] == 'Đã hoàn thành';
+  }
+
+  // KIỂM TRA SẮP ĐẾN HẠN TRONG 3 NGÀY
+  bool sapDenHan(dynamic congViec) {
+    if (daHoanThanh(congViec)) return false;
+
+    final han = layHanCongViec(congViec);
+
+    if (han == null) return false;
+
+    final homNay = chiLayNgay(DateTime.now());
+    final ngayHan = chiLayNgay(han);
+
+    final soNgay =
+        ngayHan.difference(homNay).inDays;
+
+    return soNgay >= 0 && soNgay <= 3;
+  }
+
+  // KIỂM TRA CÔNG VIỆC QUÁ HẠN
+  bool quaHan(dynamic congViec) {
+    if (daHoanThanh(congViec)) return false;
+
+    final han = layHanCongViec(congViec);
+
+    if (han == null) return false;
+
+    return chiLayNgay(han).isBefore(
+      chiLayNgay(DateTime.now()),
+    );
+  }
+
+  // ĐỊNH DẠNG NGÀY DD/MM/YYYY
+  String dinhDangNgay(DateTime ngay) {
+    final ngayChuoi =
+    ngay.day.toString().padLeft(2, '0');
+
+    final thangChuoi =
+    ngay.month.toString().padLeft(2, '0');
+
+    return '$ngayChuoi/$thangChuoi/${ngay.year}';
+  }
+
+  // Ô THỐNG KÊ SẮP ĐẾN HẠN / QUÁ HẠN
+  Widget oThongKeHan({
+    required String tieuDe,
+    required int soLuong,
+    required String moTa,
+    required IconData icon,
+    required Color mauNenO,
+    required Color mauChu,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: mauNenO,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment:
+          CrossAxisAlignment.start,
+          children: [
+            Icon(
+              icon,
+              color: mauChu,
+              size: 22,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              tieuDe,
+              style: TextStyle(
+                color: mauChu,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$soLuong',
+              style: TextStyle(
+                color: mauChu,
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              moTa,
+              style: const TextStyle(
+                color: Colors.black54,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // DANH SÁCH CÔNG VIỆC THEO HẠN
+  Widget danhSachTheoHan({
+    required String tieuDe,
+    required List<dynamic> danhSach,
+    required Color mauChu,
+    required IconData icon,
+  }) {
+    return Column(
+      crossAxisAlignment:
+      CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                tieuDe,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Text(
+              '${danhSach.length} công việc',
+              style: TextStyle(
+                fontSize: 12,
+                color: mauChu,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 10),
+
+        if (danhSach.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(
+              vertical: 10,
+            ),
+            child: Text(
+              'Không có công việc nào.',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
+            ),
+          )
+        else
+          ...danhSach.map((congViec) {
+            final han =
+            layHanCongViec(congViec);
+
+            final ten = (
+                congViec['title'] ??
+                    congViec['name'] ??
+                    'Công việc chưa có tên'
+            ).toString();
+
+            return Container(
+              margin: const EdgeInsets.only(
+                bottom: 8,
+              ),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFAFAFA),
+                borderRadius:
+                BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFFEEEEEE),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    color: mauChu,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ten,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                            FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          han == null
+                              ? 'Chưa có hạn'
+                              : 'Hạn: ${dinhDangNgay(han)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  // GIAO DIỆN E.3
+  Widget thongKeHanCongViec() {
+    final sapDen = danhSachCongViec
+        .where(sapDenHan)
+        .toList();
+
+    final qua = danhSachCongViec
+        .where(quaHan)
+        .toList();
+
+    // SẮP XẾP THEO NGÀY HẾT HẠN
+    sapDen.sort((a, b) {
+      return layHanCongViec(a)!.compareTo(
+        layHanCongViec(b)!,
+      );
+    });
+
+    qua.sort((a, b) {
+      return layHanCongViec(a)!.compareTo(
+        layHanCongViec(b)!,
+      );
+    });
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: 0.05,
+            ),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Công việc sắp đến hạn & quá hạn',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // HAI Ô THỐNG KÊ
+          Row(
+            children: [
+              oThongKeHan(
+                tieuDe: 'Sắp đến hạn',
+                soLuong: sapDen.length,
+                moTa: 'Trong 3 ngày tới',
+                icon: Icons.access_time,
+                mauNenO:
+                const Color(0xFFFFF4E6),
+                mauChu:
+                const Color(0xFFD97706),
+              ),
+
+              const SizedBox(width: 10),
+
+              oThongKeHan(
+                tieuDe: 'Quá hạn',
+                soLuong: qua.length,
+                moTa: 'Chưa hoàn thành',
+                icon:
+                Icons.warning_amber_rounded,
+                mauNenO:
+                const Color(0xFFFEECEC),
+                mauChu:
+                const Color(0xFFDC2626),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // DANH SÁCH SẮP ĐẾN HẠN
+          danhSachTheoHan(
+            tieuDe: 'Sắp đến hạn',
+            danhSach: sapDen,
+            mauChu: const Color(0xFFD97706),
+            icon: Icons.schedule,
+          ),
+
+          const Divider(height: 24),
+
+          // DANH SÁCH QUÁ HẠN
+          danhSachTheoHan(
+            tieuDe: 'Quá hạn',
+            danhSach: qua,
+            mauChu: const Color(0xFFDC2626),
+            icon: Icons.error_outline,
+          ),
         ],
       ),
     );
@@ -554,21 +859,23 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           : thongBaoLoi != null
           ? Center(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding:
+          const EdgeInsets.all(20),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+            MainAxisSize.min,
             children: [
               Text(
                 'Không tải được thống kê:\n'
                     '$thongBaoLoi',
-                textAlign: TextAlign.center,
+                textAlign:
+                TextAlign.center,
               ),
-
               const SizedBox(height: 12),
-
               ElevatedButton(
                 onPressed: taiThongKe,
-                child: const Text('Thử lại'),
+                child:
+                const Text('Thử lại'),
               ),
             ],
           ),
@@ -577,15 +884,21 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           : RefreshIndicator(
         onRefresh: taiThongKe,
         child: ListView(
-          padding: const EdgeInsets.all(12),
+          padding:
+          const EdgeInsets.all(12),
           children: [
-            // THEO DÕI TIẾN ĐỘ
+            // E.1
             thongKeTienDo(),
 
             const SizedBox(height: 12),
 
-            // THỐNG KÊ CÔNG VIỆC CỦA TÔI
+            // E.2
             thongKeCongViecCuaToi(),
+
+            const SizedBox(height: 12),
+
+            // E.3
+            thongKeHanCongViec(),
           ],
         ),
       ),
