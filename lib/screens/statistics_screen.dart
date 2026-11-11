@@ -27,13 +27,22 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   bool dangTai = true;
   String? thongBaoLoi;
 
+  // E.4 - Lịch sử hoạt động
+  String? congViecDuocChon;
+  List<dynamic> danhSachLichSu = [];
+  bool dangTaiLichSu = false;
+  String? loiLichSu;
+
   @override
   void initState() {
     super.initState();
     taiThongKe();
   }
 
-  // LẤY ID NGƯỜI ĐĂNG NHẬP TỪ TOKEN
+  // ==========================================
+  // CÁC HÀM DÙNG CHUNG
+  // ==========================================
+
   String? layUserIdTuToken(String token) {
     try {
       final parts = token.split('.');
@@ -55,7 +64,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     }
   }
 
-  // LẤY ID TỪ OBJECT HOẶC CHUỖI
   String layId(dynamic giaTri) {
     if (giaTri == null) return '';
 
@@ -75,7 +83,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  // LẤY DỮ LIỆU CÔNG VIỆC
   Future<void> taiThongKe() async {
     if (!mounted) return;
 
@@ -104,11 +111,31 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
       if (!mounted) return;
 
+      final ids = ketQua
+          .map((cv) => layId(cv['_id']))
+          .toSet();
+
+      final idDaChon =
+      ids.contains(congViecDuocChon)
+          ? congViecDuocChon
+          : null;
+
       setState(() {
         danhSachCongViec = ketQua;
         userId = id;
         dangTai = false;
+        congViecDuocChon = idDaChon;
+
+        if (idDaChon == null) {
+          danhSachLichSu = [];
+          loiLichSu = null;
+          dangTaiLichSu = false;
+        }
       });
+
+      if (idDaChon != null) {
+        await taiLichSu(idDaChon);
+      }
     } catch (e) {
       if (!mounted) return;
 
@@ -214,7 +241,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-
           Row(
             children: [
               oThongKe(
@@ -246,9 +272,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               ),
             ],
           ),
-
           const SizedBox(height: 15),
-
           Row(
             mainAxisAlignment:
             MainAxisAlignment.spaceBetween,
@@ -270,9 +294,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               ),
             ],
           ),
-
           const SizedBox(height: 7),
-
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
@@ -423,7 +445,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-
           if (userId == null || userId!.isEmpty)
             const Text(
               'Không xác định được tài khoản '
@@ -469,7 +490,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   // E.3 - SẮP ĐẾN HẠN VÀ QUÁ HẠN
   // ==========================================
 
-  // LẤY NGÀY HẾT HẠN
   DateTime? layHanCongViec(dynamic congViec) {
     if (congViec is! Map) return null;
 
@@ -487,7 +507,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     )?.toLocal();
   }
 
-  // CHỈ LẤY NGÀY, KHÔNG LẤY GIỜ
   DateTime chiLayNgay(DateTime ngay) {
     return DateTime(
       ngay.year,
@@ -496,13 +515,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  // KIỂM TRA ĐÃ HOÀN THÀNH
   bool daHoanThanh(dynamic congViec) {
     return congViec is Map &&
         congViec['status'] == 'Đã hoàn thành';
   }
 
-  // KIỂM TRA SẮP ĐẾN HẠN TRONG 3 NGÀY
   bool sapDenHan(dynamic congViec) {
     if (daHoanThanh(congViec)) return false;
 
@@ -519,7 +536,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return soNgay >= 0 && soNgay <= 3;
   }
 
-  // KIỂM TRA CÔNG VIỆC QUÁ HẠN
   bool quaHan(dynamic congViec) {
     if (daHoanThanh(congViec)) return false;
 
@@ -532,7 +548,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  // ĐỊNH DẠNG NGÀY DD/MM/YYYY
   String dinhDangNgay(DateTime ngay) {
     final ngayChuoi =
     ngay.day.toString().padLeft(2, '0');
@@ -543,7 +558,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return '$ngayChuoi/$thangChuoi/${ngay.year}';
   }
 
-  // Ô THỐNG KÊ SẮP ĐẾN HẠN / QUÁ HẠN
   Widget oThongKeHan({
     required String tieuDe,
     required int soLuong,
@@ -600,7 +614,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  // DANH SÁCH CÔNG VIỆC THEO HẠN
   Widget danhSachTheoHan({
     required String tieuDe,
     required List<dynamic> danhSach,
@@ -632,9 +645,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             ),
           ],
         ),
-
         const SizedBox(height: 10),
-
         if (danhSach.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(
@@ -680,7 +691,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     size: 20,
                   ),
                   const SizedBox(width: 10),
-
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
@@ -715,7 +725,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     );
   }
 
-  // GIAO DIỆN E.3
   Widget thongKeHanCongViec() {
     final sapDen = danhSachCongViec
         .where(sapDenHan)
@@ -725,7 +734,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         .where(quaHan)
         .toList();
 
-    // SẮP XẾP THEO NGÀY HẾT HẠN
     sapDen.sort((a, b) {
       return layHanCongViec(a)!.compareTo(
         layHanCongViec(b)!,
@@ -764,10 +772,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 12),
-
-          // HAI Ô THỐNG KÊ
           Row(
             children: [
               oThongKeHan(
@@ -780,9 +785,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 mauChu:
                 const Color(0xFFD97706),
               ),
-
               const SizedBox(width: 10),
-
               oThongKeHan(
                 tieuDe: 'Quá hạn',
                 soLuong: qua.length,
@@ -796,20 +799,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               ),
             ],
           ),
-
           const SizedBox(height: 16),
-
-          // DANH SÁCH SẮP ĐẾN HẠN
           danhSachTheoHan(
             tieuDe: 'Sắp đến hạn',
             danhSach: sapDen,
             mauChu: const Color(0xFFD97706),
             icon: Icons.schedule,
           ),
-
           const Divider(height: 24),
-
-          // DANH SÁCH QUÁ HẠN
           danhSachTheoHan(
             tieuDe: 'Quá hạn',
             danhSach: qua,
@@ -822,14 +819,404 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   // ==========================================
-  // GIAO DIỆN TRANG THỐNG KÊ & TIỆN ÍCH
+  // E.4 - LỊCH SỬ HOẠT ĐỘNG CÔNG VIỆC
+  // ==========================================
+
+  Future<void> taiLichSu(String taskId) async {
+    if (!mounted) return;
+
+    setState(() {
+      congViecDuocChon = taskId;
+      dangTaiLichSu = true;
+      danhSachLichSu = [];
+      loiLichSu = null;
+    });
+
+    try {
+      final ketQua =
+      await TaskService.getTaskActivities(
+        widget.token,
+        taskId,
+      );
+
+      if (!mounted ||
+          congViecDuocChon != taskId) {
+        return;
+      }
+
+      setState(() {
+        danhSachLichSu = ketQua;
+        dangTaiLichSu = false;
+      });
+    } catch (e) {
+      if (!mounted ||
+          congViecDuocChon != taskId) {
+        return;
+      }
+
+      setState(() {
+        loiLichSu = e
+            .toString()
+            .replaceFirst('Exception: ', '');
+        dangTaiLichSu = false;
+      });
+    }
+  }
+
+  String dinhDangThoiGian(dynamic giaTri) {
+    final ngay = DateTime.tryParse(
+      giaTri?.toString() ?? '',
+    )?.toLocal();
+
+    if (ngay == null) {
+      return 'Không rõ thời gian';
+    }
+
+    final gio =
+    ngay.hour.toString().padLeft(2, '0');
+    final phut =
+    ngay.minute.toString().padLeft(2, '0');
+
+    return '${dinhDangNgay(ngay)} $gio:$phut';
+  }
+
+  String layTenNguoi(dynamic user) {
+    if (user is Map) {
+      return (
+          user['fullName'] ??
+              user['name'] ??
+              user['email'] ??
+              'Người dùng'
+      ).toString();
+    }
+
+    return 'Người dùng';
+  }
+
+  String tenHanhDong(String action) {
+    switch (action) {
+      case 'created':
+        return 'Tạo công việc';
+      case 'updated':
+        return 'Chỉnh sửa công việc';
+      case 'status_changed':
+        return 'Thay đổi trạng thái';
+      case 'assigned':
+        return 'Giao công việc';
+      case 'shared':
+        return 'Chia sẻ công việc';
+      case 'permission_changed':
+        return 'Thay đổi quyền';
+      case 'share_revoked':
+        return 'Thu hồi quyền chia sẻ';
+      default:
+        return 'Hoạt động công việc';
+    }
+  }
+
+  IconData iconHanhDong(String action) {
+    switch (action) {
+      case 'created':
+        return Icons.add_circle_outline;
+      case 'updated':
+        return Icons.edit_outlined;
+      case 'status_changed':
+        return Icons.sync_alt;
+      case 'assigned':
+        return Icons.person_add_alt_1_outlined;
+      case 'shared':
+        return Icons.share_outlined;
+      case 'permission_changed':
+        return Icons.admin_panel_settings_outlined;
+      case 'share_revoked':
+        return Icons.person_remove_outlined;
+      default:
+        return Icons.history;
+    }
+  }
+
+  Widget oLichSu(dynamic activity) {
+    final action =
+    (activity['action'] ?? '').toString();
+
+    final moTa =
+    (activity['description'] ?? '').toString();
+
+    final tenNguoi =
+    layTenNguoi(activity['user']);
+
+    final thoiGian =
+    dinhDangThoiGian(activity['createdAt']);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF8FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFEAE6F7),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor:
+            const Color(0xFFECE7FF),
+            child: Icon(
+              iconHanhDong(action),
+              size: 19,
+              color: mauTim,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tenHanhDong(action),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  moTa,
+                  style: const TextStyle(
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.person_outline,
+                      size: 14,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        tenNguoi,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.access_time,
+                      size: 14,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      thoiGian,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget lichSuHoatDongCongViec() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: 0.05,
+            ),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Lịch sử hoạt động công việc',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Chọn công việc để xem lịch sử hoạt động.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          if (danhSachCongViec.isEmpty)
+            const Text(
+              'Chưa có công việc nào.',
+              style: TextStyle(
+                color: Colors.grey,
+              ),
+            )
+          else
+            DropdownButtonFormField<String>(
+              value: congViecDuocChon,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Chọn công việc',
+                prefixIcon: const Icon(
+                  Icons.assignment_outlined,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius:
+                  BorderRadius.circular(12),
+                ),
+              ),
+              items: danhSachCongViec.map((cv) {
+                final id = layId(cv['_id']);
+                final ten = (
+                    cv['title'] ??
+                        'Công việc chưa có tên'
+                ).toString();
+
+                return DropdownMenuItem<String>(
+                  value: id,
+                  child: Text(
+                    ten,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList(),
+              onChanged: (id) {
+                if (id != null) {
+                  taiLichSu(id);
+                }
+              },
+            ),
+
+          const SizedBox(height: 14),
+
+          if (congViecDuocChon == null)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Vui lòng chọn một công việc.',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            )
+          else if (dangTaiLichSu)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(
+                  color: mauTim,
+                ),
+              ),
+            )
+          else if (loiLichSu != null)
+              Column(
+                children: [
+                  Text(
+                    'Không tải được lịch sử:\n'
+                        '$loiLichSu',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontSize: 12,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      taiLichSu(congViecDuocChon!);
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Thử lại'),
+                  ),
+                ],
+              )
+            else if (danhSachLichSu.isEmpty)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text(
+                      'Chưa có lịch sử hoạt động.',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                )
+              else ...[
+                  Row(
+                    mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${danhSachLichSu.length} hoạt động',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: mauTim,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Làm mới lịch sử',
+                        onPressed: () {
+                          taiLichSu(congViecDuocChon!);
+                        },
+                        icon: const Icon(
+                          Icons.refresh,
+                          color: mauTim,
+                        ),
+                      ),
+                    ],
+                  ),
+                  ...danhSachLichSu.map(oLichSu),
+                ],
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // GIAO DIỆN THỐNG KÊ & TIỆN ÍCH
   // ==========================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: mauNen,
-
       appBar: AppBar(
         title: const Text(
           'Thống kê & Tiện ích',
@@ -849,7 +1236,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           ),
         ],
       ),
-
       body: dangTai
           ? const Center(
         child: CircularProgressIndicator(
@@ -859,23 +1245,19 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           : thongBaoLoi != null
           ? Center(
         child: Padding(
-          padding:
-          const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
           child: Column(
-            mainAxisSize:
-            MainAxisSize.min,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'Không tải được thống kê:\n'
                     '$thongBaoLoi',
-                textAlign:
-                TextAlign.center,
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: taiThongKe,
-                child:
-                const Text('Thử lại'),
+                child: const Text('Thử lại'),
               ),
             ],
           ),
@@ -884,8 +1266,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           : RefreshIndicator(
         onRefresh: taiThongKe,
         child: ListView(
-          padding:
-          const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(12),
           children: [
             // E.1
             thongKeTienDo(),
@@ -899,6 +1280,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
             // E.3
             thongKeHanCongViec(),
+
+            const SizedBox(height: 12),
+
+            // E.4
+            lichSuHoatDongCongViec(),
+
+            const SizedBox(height: 20),
           ],
         ),
       ),

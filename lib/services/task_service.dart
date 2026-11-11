@@ -8,7 +8,9 @@ class TaskService {
   static const String baseUrl =
       'http://10.0.2.2:3000/api/tasks';
 
+  // ==========================================
   // 1. TẠO CÔNG VIỆC MỚI
+  // ==========================================
   static Future<Map<String, dynamic>> createTask({
     required String token,
     required String title,
@@ -43,7 +45,9 @@ class TaskService {
     );
   }
 
+  // ==========================================
   // 2. LẤY DANH SÁCH CÔNG VIỆC
+  // ==========================================
   static Future<List<dynamic>> getTasks(
       String token,
       ) async {
@@ -66,7 +70,9 @@ class TaskService {
     );
   }
 
+  // ==========================================
   // 3. CHỈNH SỬA CÔNG VIỆC
+  // ==========================================
   static Future<Map<String, dynamic>> updateTask({
     required String token,
     required String taskId,
@@ -105,7 +111,9 @@ class TaskService {
     );
   }
 
+  // ==========================================
   // 4. XÓA CÔNG VIỆC
+  // ==========================================
   static Future<void> deleteTask({
     required String token,
     required String taskId,
@@ -133,7 +141,9 @@ class TaskService {
     throw Exception(thongBao);
   }
 
+  // ==========================================
   // 5. TÌM NGƯỜI DÙNG THEO EMAIL
+  // ==========================================
   static Future<Map<String, dynamic>> findUserByEmail({
     required String token,
     required String email,
@@ -162,7 +172,9 @@ class TaskService {
     );
   }
 
+  // ==========================================
   // 6. GIAO CÔNG VIỆC CHO MỘT NGƯỜI
+  // ==========================================
   static Future<Map<String, dynamic>> assignTask({
     required String token,
     required String taskId,
@@ -190,15 +202,15 @@ class TaskService {
     );
   }
 
-
-// 7. CHIA SẺ CÔNG VIỆC VÀ PHÂN QUYỀN
+  // ==========================================
+  // 7. CHIA SẺ CÔNG VIỆC VÀ PHÂN QUYỀN
+  // ==========================================
   static Future<Map<String, dynamic>> shareTask({
     required String token,
     required String taskId,
     required String userId,
     String role = 'viewer',
   }) async {
-    // Kiểm tra quyền chia sẻ
     if (role != 'viewer' && role != 'editor') {
       throw Exception('Quyền chia sẻ không hợp lệ');
     }
@@ -226,8 +238,11 @@ class TaskService {
     );
   }
 
-// 8. C.6 - THAY ĐỔI QUYỀN VIEWER / EDITOR
-  static Future<Map<String, dynamic>> updateSharePermission({
+  // ==========================================
+  // 8. C.6 - THAY ĐỔI QUYỀN VIEWER / EDITOR
+  // ==========================================
+  static Future<Map<String, dynamic>>
+  updateSharePermission({
     required String token,
     required String taskId,
     required String userId,
@@ -255,12 +270,16 @@ class TaskService {
     }
 
     throw Exception(
-      data['message'] ?? 'Không thể thay đổi quyền chia sẻ',
+      data['message'] ??
+          'Không thể thay đổi quyền chia sẻ',
     );
   }
 
-// 9. C.6 - THU HỒI QUYỀN CHIA SẺ
-  static Future<Map<String, dynamic>> revokeSharePermission({
+  // ==========================================
+  // 9. C.6 - THU HỒI QUYỀN CHIA SẺ
+  // ==========================================
+  static Future<Map<String, dynamic>>
+  revokeSharePermission({
     required String token,
     required String taskId,
     required String userId,
@@ -280,12 +299,14 @@ class TaskService {
     }
 
     throw Exception(
-      data['message'] ?? 'Không thể thu hồi quyền chia sẻ',
+      data['message'] ??
+          'Không thể thu hồi quyền chia sẻ',
     );
   }
 
-
-  // 8. GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI (C.1)
+  // ==========================================
+  // 10. C.1 - GIAO CÔNG VIỆC CHO NHIỀU NGƯỜI
+  // ==========================================
   static Future<Map<String, dynamic>> assignManyTasks({
     required String token,
     required String taskId,
@@ -298,7 +319,6 @@ class TaskService {
       );
     }
 
-    // Gọi API giao công việc cho nhiều người
     final response = await http.put(
       Uri.parse('$baseUrl/$taskId/assign-many'),
       headers: {
@@ -306,10 +326,7 @@ class TaskService {
         'Authorization': 'Bearer $token',
       },
       body: jsonEncode({
-        // Danh sách ID người được giao
         'userIds': userIds,
-
-        // Chỉ gửi primaryUserId nếu có giá trị
         if (primaryUserId != null)
           'primaryUserId': primaryUserId,
       }),
@@ -324,6 +341,36 @@ class TaskService {
     throw Exception(
       data['message'] ??
           'Không thể giao công việc cho nhiều người',
+    );
+  }
+
+  // ==========================================
+  // 11. E.4 - XEM LỊCH SỬ HOẠT ĐỘNG CÔNG VIỆC
+  // ==========================================
+  static Future<List<dynamic>> getTaskActivities(
+      String token,
+      String taskId,
+      ) async {
+    if (taskId.trim().isEmpty) {
+      throw Exception('ID công việc không hợp lệ');
+    }
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/$taskId/activities'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data['activities'] as List<dynamic>;
+    }
+
+    throw Exception(
+      data['message'] ??
+          'Không thể lấy lịch sử hoạt động công việc',
     );
   }
 }
